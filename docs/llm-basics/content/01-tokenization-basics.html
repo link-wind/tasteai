@@ -1,0 +1,180 @@
+<div class="topline"><a href="index.html">课程目录</a><span>/ 原理精讲 / 基础知识 / 词元化</span><button id="font-toggle" aria-pressed="false">放大字号</button></div>
+<header><h1>Tokenization 基础</h1><p class="lead">文本如何变成模型输入</p></header>
+<details class="learning-goals"><summary>本课要点与先修</summary><ul><li>给定一个小词表，亲手完成文本的编码与解码。</li><li>分清 token 编号、Unicode 码点与 UTF-8 字节，而不是把它们都叫“编码”。</li><li>解释字符级与字节级方案的取舍，并说明子词方法为什么有必要。</li></ul><p>先修：会读列表与字典。</p></details>
+<nav class="page-toc" aria-label="本页目录"><strong>本页目录</strong><ol><li><a href="#why">为什么需要 Tokenization？</a></li><li><a href="#character">从字符级 Tokenization 开始</a></li><li><a href="#limits">字符级方案的局限性</a></li><li><a href="#unicode">Unicode 是什么？</a></li><li><a href="#utf8">UTF-8：码点怎样变成字节？</a></li><li><a href="#bytes">纯字节与子词的取舍</a></li><li><a href="#playground">同一段文字，三种表示</a></li><li><a href="#practice">练习</a></li><li><a href="#recap">小结</a></li><li><a href="#sources">参考资料</a></li></ol></nav>
+
+<section id="why"><h2>为什么需要 Tokenization？</h2>
+<p>模型处理数值张量。Tokenizer 先把文本切成 token，再映射为整数编号。</p>
+<p>这些编号作为 Embedding 表的索引，查得向量后送入 Transformer。</p>
+<div class="pipeline" aria-label="文本转换数据流"><div><small>原始文本</small><code>A中🙂</code></div><b>→</b><div><small>切分后的单位</small><code>A | 中 | 🙂</code></div><b>→</b><div><small>词表编号</small><code>[1, 2, 3]</code></div><b>→</b><div><small>Embedding 查表</small><span>向量序列</span></div></div>
+<p class="caption">以下使用自定义字符词表，不是 GPT 的真实编号。</p>
+<h3>Token、token id、tokenizer，各指什么？</h3>
+<p>Token 是切分单位；token id 是词表索引；tokenizer 负责文本与编号之间的转换。</p>
+<p>一个 token 可以是子词、码点、字节或特殊标记，未必对应一个完整单词或汉字。</p>
+<h3>编号并不等于意义</h3>
+<p><code>中 → 2</code> 只是查表约定，编号大小不表示语义大小。Tokenizer 与模型必须使用同一套词表。</p>
+<p>Embedding 表形状为 <code>V×d</code>：V 是词表大小，d 是向量维度。T 个编号查表后得到 <code>T×d</code> 的向量序列。</p>
+
+</section>
+
+<section id="character"><h2>从字符级 Tokenization 开始</h2>
+<p>本课先采用字符级方案：每个 Unicode 码点对应一个 token。</p>
+<h3>第一步：建立词表</h3>
+<p>收集语料中的不同码点并固定编号，另预留 <code>&lt;UNK&gt;</code> 表示未知字符。</p>
+<div class="table-wrap"><table><thead><tr><th>Token id</th><th>词表单位</th><th>说明</th></tr></thead><tbody><tr><td>0</td><td><code>&lt;UNK&gt;</code></td><td>未知字符标记，是一个特殊单位</td></tr><tr><td>1</td><td><code>A</code></td><td>大写字母</td></tr><tr><td>2</td><td><code>中</code></td><td>汉字</td></tr><tr><td>3</td><td><code>🙂</code></td><td>单个码点的符号</td></tr><tr><td>4</td><td><code>e</code></td><td>小写字母</td></tr><tr><td>5</td><td><code>U+0301</code></td><td>组合尖重音，常附在前一个字母上</td></tr><tr><td>6</td><td>空格 <code>U+0020</code></td><td>空白也是文本的一部分</td></tr><tr><td>7</td><td><code>!</code></td><td>标点</td></tr></tbody></table></div>
+<p>词表一旦确定，编码时不临时改号或新增条目。</p>
+<h3>第二步：逐个查表，完成编码</h3>
+<p>输入 <code>A中 A!</code>，按码点拆成 A、中、空格、A、!，依次查表：</p>
+<pre><code>A     中     空格     A     !
+↓     ↓      ↓      ↓     ↓
+1     2      6      1     7
+
+encode("A中 A!") = [1, 2, 6, 1, 7]</code></pre>
+
+<h3>第三步：反向查表，完成解码</h3>
+<p>解码按编号反向查表，再拼接字符，得到 <code>A中 A!</code>。</p>
+<pre><code>decode([1, 2, 6, 1, 7]) = "A中 A!"
+decode(encode(text)) == text   # 什么时候成立？</code></pre>
+<p>所有码点都在词表中，且预处理没有丢失信息时，可以恢复原文，这叫往返一致。</p>
+<h3>字符编码实现</h3>
+<pre><code class="language-python">vocab = ["&lt;UNK&gt;", "A", "中", "🙂", "e", "\u0301", " ", "!"]
+char_to_id = {char: i for i, char in enumerate(vocab) if i != 0}
+
+def encode(text):
+    return [char_to_id.get(char, 0) for char in text]
+
+def decode(ids):
+    return "".join(vocab[i] for i in ids)
+
+print(encode("A中 A!"))   # [1, 2, 6, 1, 7]
+print(decode([1, 2, 6, 1, 7]))</code></pre>
+<p><code>.get(char, 0)</code> 将查不到的字符映射到未知编号 0。</p>
+</section>
+
+<section id="limits"><h2>字符级方案的局限性</h2>
+<h3>问题一：词表外字符会丢信息</h3>
+<p><code>A猫</code> 和 <code>A狗</code> 都编码为 <code>[1,0]</code>；解码只能得到 <code>A&lt;UNK&gt;</code>。</p>
+<pre><code>"A猫" → [1, 0] → "A&lt;UNK&gt;"
+"A狗" → [1, 0] → "A&lt;UNK&gt;"
+
+两个不同输入，变成了同一个结果。</code></pre>
+<p>这是多对一映射造成的信息丢失。扩大词表或采用字节回退可以改善覆盖。</p>
+<h3>问题二：单位太细，会让序列变长</h3>
+<p><code>learning</code> 按码点切分需要 8 个 token，常见子词合并后可能更短。</p>
+<p>序列越长，计算和存储通常越多；固定上下文窗口能容纳的文字也越少。</p>
+<h3>问题三：“字符”本身并没有想象中简单</h3>
+<p>屏幕上的一个“字符”也未必只有一个码点，例如组合重音和组合表情。</p>
+
+</section>
+
+<section id="unicode"><h2>Unicode 是什么？</h2>
+<p>Unicode 为字符分配标准码点（code point），例如 A 是 U+0041，中是 U+4E2D。</p>
+<div class="table-wrap"><table><thead><tr><th>显示内容</th><th>Unicode 码点</th><th>十进制值</th><th>本课 token id</th></tr></thead><tbody><tr><td>A</td><td>U+0041</td><td>65</td><td>1</td></tr><tr><td>中</td><td>U+4E2D</td><td>20013</td><td>2</td></tr><tr><td>🙂</td><td>U+1F642</td><td>128578</td><td>3</td></tr></tbody></table></div>
+<p><code>U+</code> 后是十六进制。“中”的公共码点值为 20013，教学 token id 为 2，两者用途不同。</p>
+<h3>为什么不直接把码点当作模型编号？</h3>
+<p>直接用整个码点空间索引 Embedding 会保留大量未用位置，而且仍有字符粒度带来的长序列问题。</p>
+
+<h3>看起来一个字，不一定只有一个码点</h3>
+<p>下面两种写法看起来相近，码点序列却不同：</p>
+<pre><code>é       → U+00E9                  → 1 个码点
+é       → U+0065 + U+0301         → 2 个码点
+           e        组合尖重音</code></pre>
+<p><code>e</code> 后加 U+0301 组合重音，通常被感知为一个字素簇，但包含两个码点。</p>
+<p>NFC 规范化可统一这对等价表示。本课不自动规范化，以便比较原始码点与字节。</p>
+<h3>Python 的长度和 JavaScript 的长度为何不同？</h3>
+<pre><code class="language-python"># Python 3：本例按码点计数
+len("A中🙂")                        # 3</code></pre>
+<pre><code class="language-javascript">// JavaScript：字符串 length 按 UTF-16 码元计数
+"A中🙂".length                      // 4
+Array.from("A中🙂").length          // 3（码点数量）</code></pre>
+<p>🙂 在 JavaScript 中占两个 UTF-16 码元，因此 <code>.length</code> 为 2；<code>Array.from</code> 按码点迭代，得到 1。</p>
+<div class="callout"><strong>每次说“长度”，都补上单位</strong><p>码点数、字素簇数、UTF-16 码元数、字节数和 token 数应分别计算。</p></div>
+</section>
+
+<section id="utf8"><h2>UTF-8：码点怎样变成字节？</h2>
+<p>UTF-8 将 Unicode 标量值编码为字节。每个字节有 8 位，值为 0～255。</p><figure class="concept-figure" id="concept-figure"><div class="figure-heading"><strong>图解 · 字符、码点和字节的边界</strong><button type="button" class="figure-zoom" aria-label="放大图解：字符、码点和字节的边界" hidden>放大查看 ↗</button></div><img src="figures/01-byte-boundaries.svg" alt="沿箭头往下读：A、中、🙂 分别占 1、3、4 个 UTF-8 字节。先数清这三层，再讨论 tokenizer 如何把连续字节分组。" loading="lazy"><figcaption>A、中、🙂 分别占1、3、4字节：码点边界与字节边界不同。</figcaption></figure>
+<p>一个标量值占 1～4 字节；ASCII 保持单字节。代理项 U+D800～U+DFFF 不属于标量值。</p>
+<div class="table-wrap"><table><thead><tr><th>标量值范围</th><th>字节数</th><th>UTF-8 位模式</th></tr></thead><tbody><tr><td>U+0000～U+007F</td><td>1</td><td><code>0xxxxxxx</code></td></tr><tr><td>U+0080～U+07FF</td><td>2</td><td><code>110xxxxx 10xxxxxx</code></td></tr><tr><td>U+0800～U+FFFF（排除代理项）</td><td>3</td><td><code>1110xxxx 10xxxxxx 10xxxxxx</code></td></tr><tr><td>U+10000～U+10FFFF</td><td>4</td><td><code>11110xxx 10xxxxxx 10xxxxxx 10xxxxxx</code></td></tr></tbody></table></div>
+<p><code>x</code> 表示码点有效位；后续字节以 <code>10</code> 开头。合法 UTF-8 还需满足范围与最短编码约束。</p>
+<details class="supplement"><summary>展开 UTF-8 位编码推演</summary><h3>先算 A：一个字节就够</h3>
+<p><code>A = U+0041 = 65</code>，对应二进制 <code>01000001</code>，即单字节 <code>41</code>。</p>
+<h3>再算中：把码点填进三字节模板</h3>
+<p>“中”是 U+4E2D。将其二进制按 4、6、6 位分组，填入三字节模板：</p>
+<pre><code>码点 U+4E2D：      0100 1110 0010 1101
+分成 4 + 6 + 6 位：0100 | 111000 | 101101
+
+三字节模板：       1110xxxx  10xxxxxx  10xxxxxx
+填入有效位：       11100100  10111000  10101101
+转为十六进制：        E4        B8        AD</code></pre>
+<p>得到 <code>E4 B8 AD</code>；去掉结构前缀再拼接有效位，可还原 U+4E2D。</p>
+<h3>最后看 🙂：需要四个字节</h3>
+<pre><code>U+1F642 的有效位（补齐到 21 位）：
+000 | 011111 | 011001 | 000010
+
+填入模板：11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+得到字节：11110000 10011111 10011001 10000010
+十六进制：   F0       9F       99       82</code></pre>
+<p>将三个字符的字节连接起来：</p>
+<pre><code>文本：        A      中             🙂
+UTF-8：      41 | E4 B8 AD | F0 9F 99 82
+总字节数：    1  +    3    +     4       = 8</code></pre>
+<p>同一批字节用十进制表示为 <code>[65,228,184,173,240,159,153,130]</code>。</p>
+</details><h3>代码验证</h3>
+<pre><code class="language-python">text = "A中🙂"
+payload = text.encode("utf-8")
+print(len(text))                 # 3：码点
+print(len(payload))              # 8：字节
+print(payload.hex(" "))          # 41 e4 b8 ad f0 9f 99 82
+print(payload.decode("utf-8"))    # A中🙂</code></pre>
+<p><code>encode(&quot;utf-8&quot;)</code> 使用标准字符编码，不查询前面的教学词表，因此“猫”也能编码。</p>
+</section>
+
+<section id="bytes"><h2>纯字节与子词的取舍</h2>
+<p>纯字节 tokenizer 把每个字节当作基础 token，只需 256 个基础值即可覆盖合法 Unicode 文本。</p>
+<p>对 <code>A中🙂</code>，字节值作为 ID 时得到 8 个 token；拼接字节后可恢复原文。</p>
+<h3>代价：同一段文字，需要更多位置</h3>
+<p>这段文本只有 3 个码点，却有 8 个字节。常见汉字多占 3 字节，部分扩展字符占 4 字节。</p>
+<p>在每字节一个 token 的方案中，<code>中中中中</code> 需要 12 个位置；本课字符词表只需 4 个。</p>
+<p>纯字节方案覆盖广，但通常产生更长序列，这是覆盖与效率的取舍。</p>
+<h3>一个字节 token 不一定能单独显示成文字</h3>
+<p><code>E4</code> 只是“中”的首字节，单独按 UTF-8 解码会失败或显示替代符。</p>
+<pre><code class="language-python">bytes([0xE4]).decode("utf-8")              # 严格模式：解码错误
+bytes([0xE4, 0xB8, 0xAD]).decode("utf-8")  # 中</code></pre>
+<p>应先拼接完整字节再解码；流式处理用增量解码器暂存未完整的字符。</p>
+<h3>子词方法试图取得怎样的平衡？</h3>
+<p>子词方案将常见片段合成较大 token，不常见片段再拆小。例如 <code>learn | ing</code> 是一种手工示意。</p>
+<p>字节级 BPE 从字节出发学习常见合并，兼顾基础覆盖与序列压缩。下一课介绍训练和编码。</p>
+<div class="table-wrap"><table><thead><tr><th>方案</th><th>基础单位</th><th>主要收益</th><th>主要取舍</th></tr></thead><tbody><tr><td>字符级（本课）</td><td>Unicode 码点</td><td>直观、便于手算</td><td>固定字符词表有覆盖边界；常见片段仍可能很长</td></tr><tr><td>纯字节级</td><td>UTF-8 字节</td><td>256 个基础值覆盖合法 Unicode 文本</td><td>单位细，序列可能更长；单字节不一定独立可解码</td></tr><tr><td>子词级</td><td>学到的文字或字节片段</td><td>常见片段可用较少 token 表示</td><td>词表变大；需训练与保存切分规则；覆盖取决于具体设计</td></tr></tbody></table></div>
+<div class="callout"><strong>三个目标，不必总能同时做到最好</strong><p>比较方案时，一起看词表大小、序列长度和文本覆盖。</p></div>
+</section>
+
+<section id="playground"><h2>同一段文字，三种表示</h2>
+<p>输入 <code>A中🙂</code> 对照三种表示，再输入“猫”观察未知字符。</p>
+<div class="experiment"><label for="text-input"><strong>输入文本</strong> <span class="muted">最多 120 个 Unicode 码点；不自动规范化</span></label><textarea id="text-input" rows="3" spellcheck="false" aria-describedby="input-help">A中🙂</textarea><p id="input-help" class="caption">保留空格与换行，最多输入 120 个码点。</p><div class="sample-buttons"><button type="button" data-sample="mixed">中英与符号</button><button type="button" data-sample="accent">组合重音</button><button type="button" data-sample="unknown">词表外字符</button><button type="button" data-sample="empty">清空</button></div>
+<p id="lab-status" class="lab-status" role="status" aria-live="polite"></p><div class="metrics" aria-label="输入统计"><div><strong id="count-codepoints">—</strong><span>Unicode 码点</span></div><div><strong id="count-bytes">—</strong><span>UTF-8 字节</span></div><div><strong id="count-units">—</strong><span>JS UTF-16 码元</span></div></div>
+<h3>① 码点：公共标准里的编号</h3><div id="codepoint-rows" class="table-wrap"></div>
+<h3>② 字符词表：本课的模型输入编号</h3><p class="caption">教学词表：0=&lt;UNK&gt;，1=A，2=中，3=🙂，4=e，5=U+0301，6=空格，7=!。</p><dl><dt>字符 token ids</dt><dd><code id="char-ids"></code></dd><dt>按字符词表解码</dt><dd><code id="char-decoded"></code></dd><dt>词表外字符</dt><dd><code id="unknown-chars"></code></dd></dl>
+<h3>③ UTF-8：文件与字节级表示</h3><dl><dt>十六进制字节序列</dt><dd><code id="byte-hex"></code></dd><dt>以字节值直接作 id 的教学序列</dt><dd><code id="byte-ids"></code></dd><dt>拼回全部字节后解码</dt><dd><code id="byte-decoded"></code></dd></dl>
+<p class="caption">孤立代理项会被浏览器替换为 U+FFFD；配套 Python 严格模式会报错。</p>
+<noscript><p>实验需要 JavaScript；也可运行本课 Python 脚本。</p></noscript></div>
+</section>
+
+<section id="practice"><h2>练习</h2><details class="supplement"><summary>自测与解析 · 7 题</summary><p>先作答，再展开解析。</p>
+<article class="exercise"><h3>01 · 三个数字，分别属于哪套系统？</h3><p>本课中“中”的 token id 是 2，Unicode 码点的十进制值是 20013，UTF-8 是 E4 B8 AD。它们为什么可以同时成立？编号 2 能否与 A 的编号 1 作语义大小比较？</p><details class="answer"><summary>展开逐步解析</summary><p>2 是教学词表中的条目索引；20013 是公共标准中的 U+4E2D；E4 B8 AD 是按 UTF-8 规则存储该标量值的三个字节。词表编号可由我们重新指定，但公共码点与既定 UTF-8 映射不能随意改变。编号大小不代表语义大小，向量表示才是后续模型学习的对象。</p></details></article>
+<article class="exercise"><h3>02 · 手动编码与解码</h3><p>使用上面的固定词表，写出 <code>中 A!</code> 的编号序列；再解码 <code>[3, 6, 2, 1]</code>。注意空格。</p><details class="answer"><summary>展开逐步解析</summary><p>第一串按顺序是中、空格、A、!，依次查表为 2、6、1、7，所以是 <code>[2, 6, 1, 7]</code>。第二串依次恢复为 🙂、空格、中、A，拼成 <code>🙂 中A</code>。空格占一个位置，不能直接删去。</p></details></article>
+<article class="exercise"><h3>03 · 为什么无法恢复未知字符？</h3><p>编码 <code>A猫!</code> 后得到什么？为什么不能根据编号序列确定“猫”这个字？如果扩充模型参数量，能保证恢复吗？</p><details class="answer"><summary>展开逐步解析</summary><p>A 是 1，猫不在词表所以是 0，! 是 7，得到 <code>[1, 0, 7]</code>；解码为 <code>A&lt;UNK&gt;!</code>。狗、树等未知字符也会给出相同序列，映射已经多对一。模型可能根据上下文猜测，但不可能仅凭这串编号保证恢复原字。修复要从表示或覆盖策略入手。</p></details></article>
+<article class="exercise"><h3>04 · 不写代码，算出字节数</h3><p><code>A中🙂!</code> 有几个码点、几个 UTF-8 字节？使用本课字符词表有几个 token？如果采用每字节一个 token 的方案呢？</p><details class="answer"><summary>展开逐步解析</summary><p>四个码点。UTF-8 中 A 占 1 字节，中占 3，🙂 占 4，! 占 1，总共 <code>1 + 3 + 4 + 1 = 9</code> 字节。本课字符词表有 4 个 token，纯字节教学方案有 9 个 token。这不说明任意实际 GPT tokenizer 必定输出 4 或 9 个。</p></details></article>
+<article class="exercise"><h3>05 · 看起来相同，为什么计数不同？</h3><p>预组字符 <code>é</code> 和分解形式 <code>e + U+0301</code> 分别占几个码点、几个 UTF-8 字节？为什么看起来相近却不应默认当成同一串数据？</p><details class="answer"><summary>展开逐步解析</summary><p>预组形式 U+00E9 在双字节范围，占 1 码点、2 字节（C3 A9）。分解形式由 U+0065 与 U+0301 组成，占 2 码点，分别为 1 和 2 字节，总计 3 字节（65 CC 81）。规范化可以统一这对等价表示，但本课没有自动执行；原始码点和字节序列确实不同。</p></details></article>
+<article class="exercise"><h3>06 · 字节覆盖足够广，为何还要子词？</h3><p>在一个最多 12 token 的假想窗口中，用本课字符方案和纯字节方案分别能放下多少个“中”？这能说明哪种方案一定更好吗？</p><details class="answer"><summary>展开逐步解析</summary><p>忽略所有特殊 token 时，字符方案每个中占 1 个位置，可放 12 个；字节方案每个中占 3 个位置，可放 4 个。这显示了序列长度差异，但字符方案还有词表覆盖边界；子词方案则会受到词表及语料影响。不能从一个例子推出绝对优劣。合适的比较应在具体语料和预算上进行。</p></details></article>
+<article class="exercise"><h3>07 · 一半字符能单独解码吗？</h3><p>“中”对应 E4 B8 AD。如果流式生成只收到 E4，就立即按 UTF-8 解码，为什么可能出现错误？正确的处理思路是什么？</p><details class="answer"><summary>展开逐步解析</summary><p>E4 是一个三字节 UTF-8 序列的开头，后面还缺 B8 AD；它本身不是完整字符。应保留未完成字节，等待后续字节后组合解码，或使用增量 UTF-8 解码器。不应把每个字节 token 先独立转成文字再拼接替代符。</p></details></article>
+</details></section>
+
+<section id="recap"><h2>小结</h2><p>码点表示标准字符位置；UTF-8 表示存储字节；token id 表示指定词表的索引。</p>
+<div class="recap"><ol><li><strong>Tokenization 是表示选择。</strong> 决定单位、切分与查表规则，编号与模型要匹配。</li><li><strong>字符级方案容易验证。</strong> 覆盖内可逆，UNK 会丢信息；码点不等于视觉上的一个字符。</li><li><strong>UTF-8 提供通用字节表示。</strong> 合法标量值占 1～4 字节，文本字节数不等于 token 数。</li><li><strong>子词方法关心覆盖与效率。</strong> 在基础单位之上学习常用片段，用更短序列表达常见文本。</li></ol></div>
+<h3>本地实验实验</h3><p>配套脚本仅使用 Python 标准库。打开仓库根目录的终端，运行：</p><pre><code class="language-bash">python3 labs/02-tokenization-basics/01-character-and-utf8.py
+python3 labs/02-tokenization-basics/01-character-and-utf8.py --text 'A猫'
+python3 -m unittest discover -s tests -p 'test_tokenization_basics*.py'</code></pre>
+<p>默认脚本会输出 <code>A中🙂</code>、组合重音、<code>A猫</code> 和空字符串。先预测结果再运行，尤其检查字符解码与 UTF-8 解码是否都能恢复原文。<a href="../../labs/02-tokenization-basics/01-character-and-utf8.py">查看或保存实验脚本</a> · <a href="../../labs/02-tokenization-basics/README.md">实验说明</a></p>
+
+</section>
+<section id="sources" class="sources"><h2>参考资料</h2><ul><li><a href="https://cookllm.com/docs/fundamentals/basics/tokenization/01-tokenization-basics" target="_blank" rel="noopener">CookLLM · Tokenization 基础</a>：主题与公开章节结构。</li><li><a href="https://www.unicode.org/versions/Unicode17.0.0/core-spec/chapter-2/" target="_blank" rel="noopener">Unicode 标准 · General Structure</a>：字符与字形、码点、编码形式与组合字符。</li><li><a href="https://docs.python.org/3/howto/unicode.html" target="_blank" rel="noopener">Python 官方 · Unicode HOWTO</a>：字符串、码点、字节及 encode/decode。</li></ul><p>所有字符 token id、手工子词切分与窗口例子均为教学示例，不代表真实 GPT tokenizer 输出。准确切分需使用指定模型对应的 tokenizer，后续专节再讨论。</p></section>

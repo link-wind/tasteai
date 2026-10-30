@@ -1,0 +1,356 @@
+{
+  "checked_at": "2026-10-29",
+  "source": "https://cookllm.com/docs",
+  "source_note": "源链接通过公开导航逐项确认；PagedAttention 与动手训练的链接目标已确认，但抓取正文超时。分组标题使用公开导航名称。",
+  "nodes": [
+    {
+      "title": "原理精讲",
+      "kind": "group",
+      "source": "https://cookllm.com/docs",
+      "status": "pending",
+      "children": [
+        {
+          "title": "基础知识",
+          "kind": "group",
+          "source": "https://cookllm.com/docs",
+          "status": "pending",
+          "children": [
+            {
+              "title": "词元化",
+              "kind": "group",
+              "source": "https://cookllm.com/docs/fundamentals/basics/tokenization",
+              "status": "pending",
+              "children": [
+                {
+                  "title": "Tokenization 基础",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/basics/tokenization/01-tokenization-basics",
+                  "status": "published",
+                  "local": "01-tokenization-basics.html"
+                },
+                {
+                  "title": "BPE 算法详解",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/basics/tokenization/02-bpe-algorithm",
+                  "status": "published",
+                  "local": "02-bpe-algorithm.html",
+                  "scripts": [
+                    "bpe.js",
+                    "bpe-playground.js"
+                  ]
+                },
+                {
+                  "title": "GPT 系列 Tokenizer",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/basics/tokenization/03-gpt-tokenizers",
+                  "status": "published",
+                  "local": "03-gpt-tokenizers.html",
+                  "scripts": [
+                    "foundation-math.js",
+                    "tokenizer-samples.js",
+                    "foundations.js"
+                  ]
+                },
+                {
+                  "title": "BPE 训练工程化",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/basics/tokenization/04-bpe-engineering",
+                  "status": "published",
+                  "local": "04-bpe-engineering.html",
+                  "scripts": [
+                    "foundation-math.js",
+                    "engineering-counts.js",
+                    "foundations.js"
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "模型架构",
+              "kind": "group",
+              "source": "https://cookllm.com/docs/fundamentals/basics/architecture",
+              "status": "pending",
+              "children": [
+                {
+                  "title": "Transformer LM",
+                  "kind": "group",
+                  "source": "https://cookllm.com/docs/fundamentals/basics/architecture/transformer-lm",
+                  "status": "published",
+                  "children": [
+                    {
+                      "title": "从 token ids 到 logits",
+                      "kind": "lesson",
+                      "source": "https://cookllm.com/docs/fundamentals/basics/architecture/transformer-lm/01-transformer-lm-overview",
+                      "status": "published",
+                      "local": "05-token-ids-to-logits.html",
+                      "scripts": [
+                        "foundation-math.js",
+                        "foundations.js"
+                      ]
+                    },
+                    {
+                      "title": "Embedding 与 LM Head",
+                      "kind": "lesson",
+                      "source": "https://cookllm.com/docs/fundamentals/basics/architecture/transformer-lm/02-embedding-and-lm-head",
+                      "status": "published",
+                      "local": "06-embedding-lm-head.html",
+                      "scripts": [
+                        "foundation-math.js",
+                        "foundations.js"
+                      ]
+                    }
+                  ],
+                  "local": "transformer-lm.html"
+                }
+              ]
+            },
+            {
+              "title": "Attention 机制",
+              "kind": "group",
+              "source": "https://cookllm.com/docs/fundamentals/basics/architecture/attention",
+              "status": "pending",
+              "children": [
+                {
+                  "title": "Self-Attention 到 GQA",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/basics/architecture/attention/01-attention-mechanism",
+                  "status": "published",
+                  "local": "07-self-attention-gqa.html",
+                  "scripts": [
+                    "foundation-math.js",
+                    "foundations.js"
+                  ]
+                },
+                {
+                  "title": "Attention Sink",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/basics/architecture/attention/02-attention-sink",
+                  "status": "published",
+                  "local": "08-attention-sink.html",
+                  "scripts": [
+                    "foundation-math.js",
+                    "foundations.js"
+                  ]
+                }
+              ]
+            },
+            {
+              "title": "位置编码",
+              "kind": "group",
+              "source": "https://cookllm.com/docs/fundamentals/basics/architecture/rope",
+              "status": "pending",
+              "children": [
+                {
+                  "title": "位置编码基础",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/basics/architecture/rope/01-position-encoding",
+                  "status": "published",
+                  "local": "09-position-encoding.html",
+                  "scripts": [
+                    "foundation-math.js",
+                    "foundations.js"
+                  ]
+                },
+                {
+                  "title": "RoPE 数学推导",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/basics/architecture/rope/02-rope-theory",
+                  "status": "published",
+                  "local": "10-rope-theory.html",
+                  "scripts": [
+                    "foundation-math.js",
+                    "foundations.js"
+                  ]
+                },
+                {
+                  "title": "RoPE 代码实现",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/basics/architecture/rope/03-rope-implementation",
+                  "status": "published",
+                  "local": "11-rope-implementation.html",
+                  "scripts": [
+                    "foundation-math.js",
+                    "foundations.js"
+                  ]
+                },
+                {
+                  "title": "长度外推",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/basics/architecture/rope/04-length-extrapolation",
+                  "status": "published",
+                  "local": "12-length-extrapolation.html",
+                  "scripts": [
+                    "foundation-math.js",
+                    "foundations.js"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "系统工程",
+          "kind": "group",
+          "source": "https://cookllm.com/docs",
+          "status": "pending",
+          "children": [
+            {
+              "title": "GPU 编程基础",
+              "kind": "group",
+              "source": "https://cookllm.com/docs/fundamentals/systems/gpu-programming",
+              "status": "pending",
+              "children": [
+                {
+                  "title": "GPU 架构基础",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/gpu-programming/01-gpu-basic",
+                  "status": "pending"
+                },
+                {
+                  "title": "张量布局",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/gpu-programming/02-tensor-layout",
+                  "status": "pending"
+                },
+                {
+                  "title": "Triton 入门：向量加法",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/gpu-programming/03-triton-vector-add",
+                  "status": "pending"
+                }
+              ]
+            },
+            {
+              "title": "FlashAttention",
+              "kind": "group",
+              "source": "https://cookllm.com/docs/fundamentals/systems/flash-attention",
+              "status": "pending",
+              "children": [
+                {
+                  "title": "Flash Attention 原理详解",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/flash-attention/01-attention-memory-trap",
+                  "status": "pending"
+                },
+                {
+                  "title": "从朴素实现到 Auto-Tuning",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/flash-attention/02-naive-to-flash",
+                  "status": "pending"
+                },
+                {
+                  "title": "Block Pointer 与多维支持",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/flash-attention/03-block-pointers",
+                  "status": "pending"
+                },
+                {
+                  "title": "Causal Masking 优化",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/flash-attention/04-causal-masking",
+                  "status": "pending"
+                },
+                {
+                  "title": "Grouped Query Attention",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/flash-attention/05-grouped-query-attention",
+                  "status": "pending"
+                },
+                {
+                  "title": "反向传播实现",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/flash-attention/06-backward-pass",
+                  "status": "pending"
+                }
+              ]
+            },
+            {
+              "title": "分布式训练",
+              "kind": "group",
+              "source": "https://cookllm.com/docs/fundamentals/systems/distributed-training",
+              "status": "pending",
+              "children": [
+                {
+                  "title": "数据并行",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/distributed-training/01-data-parallelism",
+                  "status": "pending"
+                },
+                {
+                  "title": "ZeRO 优化器",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/distributed-training/02-zero-optimizer",
+                  "status": "pending"
+                },
+                {
+                  "title": "全分片数据并行",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/distributed-training/03-fsdp",
+                  "status": "pending"
+                },
+                {
+                  "title": "张量并行",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/distributed-training/04-tensor-parallelism",
+                  "status": "pending"
+                },
+                {
+                  "title": "流水线并行",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/distributed-training/05-pipeline-parallelism",
+                  "status": "pending"
+                },
+                {
+                  "title": "多维混合并行",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/distributed-training/06-hybrid-parallelism",
+                  "status": "pending"
+                }
+              ]
+            },
+            {
+              "title": "推理优化",
+              "kind": "group",
+              "source": "https://cookllm.com/docs/fundamentals/systems/inference",
+              "status": "pending",
+              "children": [
+                {
+                  "title": "KV Cache",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/inference/01-kv-cache",
+                  "status": "pending"
+                },
+                {
+                  "title": "Continuous Batching",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/inference/02-continuous-batching",
+                  "status": "pending"
+                },
+                {
+                  "title": "PagedAttention",
+                  "kind": "lesson",
+                  "source": "https://cookllm.com/docs/fundamentals/systems/inference/03-pagedattention",
+                  "status": "pending"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "动手训练",
+      "kind": "group",
+      "source": "https://cookllm.com/docs",
+      "status": "pending",
+      "children": [
+        {
+          "title": "动手训练",
+          "kind": "lesson",
+          "source": "https://cookllm.com/docs/training",
+          "status": "pending"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,183 @@
+<div class="topline"><a href="index.html">课程目录</a><span>/ 原理精讲 / 基础知识 / 词元化</span><button id="font-toggle" aria-pressed="false">放大字号</button></div>
+<header><h1>BPE 算法详解</h1><p class="lead">从字节学习有序合并规则</p></header>
+<details class="learning-goals"><summary>本课要点与先修</summary><ul><li>给定语料，统计当前相邻对频次，手算至少两轮合并。</li><li>写清 BPE 的训练、编码和解码三条数据流，解释为什么要保存规则顺序。</li><li>分清合并频次与实际节省量，说明字节级覆盖的条件与局限。</li></ul><p>先修：字符、词表与 UTF-8。</p></details>
+<nav class="page-toc" aria-label="本页目录"><strong>本页目录</strong><ol><li><a href="#idea">BPE 的核心思想</a></li><li><a href="#setup">语料、基础单位与边界</a></li><li><a href="#rounds">第 1 轮：找到最频繁的相邻对</a></li><li><a href="#implementation">实现 BPE：统计、合并、训练</a></li><li><a href="#encoding">编码：文本 → Token IDs</a></li><li><a href="#decoding">解码：Token IDs → 字节 → 文本</a></li><li><a href="#bpe-lab">实验：把 42 个位置，逐步合到 12 个</a></li><li><a href="#practice">练习与逐步解析</a></li><li><a href="#recap">本地实验</a></li><li><a href="#sources">参考资料</a></li></ol></nav>
+
+<section id="idea"><h2>BPE 的核心思想</h2>
+<p>纯字节表示序列偏长。BPE 将高频相邻片段合并为新 token，例如把 <code>l | o</code> 合为 <code>lo</code>。</p><figure class="concept-figure" id="concept-figure"><div class="figure-heading"><strong>图解 · BPE 合并带</strong><button type="button" class="figure-zoom" aria-label="放大图解：BPE 合并带" hidden>放大查看 ↗</button></div><img src="figures/02-bpe-merges.svg" alt="从上往下看，同一段 low 的字节没有丢失，只是相邻片段的边界逐轮减少；新片段取得新 ID。下方交互可逐轮观察全部训练语料。" loading="lazy"><figcaption>沿箭头向下读：low 的字节不变，token 边界逐轮减少。</figcaption></figure>
+<p>BPE（Byte Pair Encoding）反复执行：统计相邻对 → 选择最高频对 → 合并 → 重新统计，得到词表和有序规则。</p>
+<div class="pipeline"><div><small>初始字节</small><code>l | o | w</code></div><b>→</b><div><small>合并 l + o</small><code>lo | w</code></div><b>→</b><div><small>合并 lo + w</small><code>low</code></div></div>
+<p>后续轮次可以合并多字节片段，例如 <code>lo + w → low</code>；操作单位是当前 token。</p>
+<h3>这里的训练，不是训练神经网络</h3>
+<p>这里的“训练”是统计与建立合并规则，不涉及神经网络梯度。</p>
+<div class="callout"><strong>先分开三个过程</strong><p>训练：语料 → 规则；编码：文本 + 规则 → IDs；解码：IDs + 词表 → 字节 → 原文。</p></div>
+<h3>它优化的不是“找到有意义的词”</h3>
+<p>BPE 根据频次合并，不要求片段具有完整词义，例如 <code>ew</code> 也可以成为 token。</p>
+</section>
+
+<section id="setup"><h2>语料、基础单位与边界</h2>
+<p>使用下列四条语料；权重表示该记录在统计中出现的次数。</p>
+<div class="table-wrap"><table><thead><tr><th>训练条目</th><th>权重</th><th>初始字节 ID</th><th>加权 token 数</th></tr></thead><tbody><tr><td>low</td><td>5</td><td>[108, 111, 119]</td><td>3 × 5 = 15</td></tr><tr><td>lower</td><td>2</td><td>[108, 111, 119, 101, 114]</td><td>5 × 2 = 10</td></tr><tr><td>new</td><td>4</td><td>[110, 101, 119]</td><td>3 × 4 = 12</td></tr><tr><td>newer</td><td>1</td><td>[110, 101, 119, 101, 114]</td><td>5 × 1 = 5</td></tr></tbody></table></div>
+<p>四种文本总权重为 12，初始加权 token 总量为 42。</p>
+<h3>本课的四条确定性约定</h3>
+<ol><li><strong>以真实 UTF-8 字节为基础。</strong> 初始词表含全部 256 个单字节，ID 为 0～255，而不只是语料见过的字母。本例都是 ASCII，因此一个字母正好是一个字节；算法并不以英文字母为基础。</li><li><strong>每条训练文本是一个独立段。</strong> 不跨条目统计相邻对，也不在条目之间凭空插空格、词尾符号或连接符。原文中若有空格，它自己也会成为字节。</li><li><strong>频次并列时按整数 ID 对升序选择。</strong> 先比较左 ID，再比较右 ID。这样 Python 和网页总能走出同一条轨迹。这是教学实现的决策规则，不是 BPE 唯一可能的规则。</li><li><strong>新 ID 从 256 起递增。</strong> 规则优先级 rank 从 0 起递增。第 0 条规则的输出 ID 是 256；本例有 <code>新 ID = 256 + rank</code>，但两者含义不同，不能把这个算式当作所有 tokenizer 的约定。</li></ol>
+<p>本课每条记录是一段，不跨记录合并。真实 tokenizer 的预分词边界见下一课。</p>
+</section>
+
+<section id="rounds"><h2>第 1 轮：找到最频繁的相邻对</h2>
+<p><code>lower×2</code> 和 <code>low×5</code> 分别为 <code>(l,o)</code> 贡献 2 与 5 次，总频次是 7。</p>
+<div class="table-wrap"><table><thead><tr><th>相邻对</th><th>ID 对</th><th>贡献来源</th><th>总频次</th></tr></thead><tbody><tr><td>l + o</td><td>(108, 111)</td><td>low×5 + lower×2</td><td>7</td></tr><tr><td>o + w</td><td>(111, 119)</td><td>low×5 + lower×2</td><td>7</td></tr><tr><td>e + w</td><td>(101, 119)</td><td>new×4 + newer×1</td><td>5</td></tr><tr><td>n + e</td><td>(110, 101)</td><td>new×4 + newer×1</td><td>5</td></tr><tr><td>e + r</td><td>(101, 114)</td><td>lower×2 + newer×1</td><td>3</td></tr><tr><td>w + e</td><td>(119, 101)</td><td>lower×2 + newer×1</td><td>3</td></tr></tbody></table></div>
+<p><code>l+o</code> 与 <code>o+w</code> 并列 7 次；按整数 ID 对升序，选 <code>(108,111)</code>，分配新 ID 256。</p>
+<pre><code>规则 rank 0：(108, 111) → 256，词表[256] = 字节 b"lo"
+
+low   × 5：l | o | w        → lo | w
+lower × 2：l | o | w | e | r → lo | w | e | r
+new   × 4：n | e | w        → n | e | w
+newer × 1：n | e | w | e | r → n | e | w | e | r</code></pre>
+<p>本轮共减少 7 个加权位置：42→35；词表新增一项，变为 257 项。</p>
+<h3>第 2 轮：必须在新序列上重新统计</h3>
+<p>合并后重计数：<code>lo+w</code> 在两条记录中共出现 7 次，成为下一轮选择。</p>
+<pre><code>规则 rank 1：(256, 119) → 257，词表[257] = 字节 b"low"
+
+low   × 5：lo | w        → low
+lower × 2：lo | w | e | r → low | e | r
+new   × 4：n | e | w     → n | e | w
+newer × 1：n | e | w | e | r → n | e | w | e | r</code></pre>
+<p>第二轮将 <code>lo+w</code> 合成 ID 257，总量从 35 降为 28。</p>
+<h3>继续迭代：为什么接下来是 ew？</h3>
+<p>接着 <code>e+w</code> 与 <code>n+e</code> 均为 5 次，按 ID 对选前者；随后合并 <code>n+ew</code>。</p>
+<div class="table-wrap"><table><thead><tr><th>轮次</th><th>rank</th><th>合并对</th><th>新 ID / 片段</th><th>频次</th><th>加权总量</th></tr></thead><tbody><tr><td>初始</td><td>—</td><td>—</td><td>0～255</td><td>—</td><td>42</td></tr><tr><td>1</td><td>0</td><td>l + o</td><td>256 / lo</td><td>7</td><td>35</td></tr><tr><td>2</td><td>1</td><td>lo + w</td><td>257 / low</td><td>7</td><td>28</td></tr><tr><td>3</td><td>2</td><td>e + w</td><td>258 / ew</td><td>5</td><td>23</td></tr><tr><td>4</td><td>3</td><td>n + ew</td><td>259 / new</td><td>5</td><td>18</td></tr><tr><td>5</td><td>4</td><td>e + r</td><td>260 / er</td><td>3</td><td>15</td></tr><tr><td>6</td><td>5</td><td>low + er</td><td>261 / lower</td><td>2</td><td>13</td></tr><tr><td>7</td><td>6</td><td>new + er</td><td>262 / newer</td><td>1</td><td>12</td></tr></tbody></table></div>
+<p>七轮后各条记录只剩一个 token，总量为 12；无段内相邻对，训练停止。词表大小为 263。</p>
+<div class="pause"><strong>先预测，再操作</strong><p>训练两轮后，<code>lower</code> 仍是 <code>low | e | r</code>。</p></div>
+</section>
+
+<section id="implementation"><h2>实现 BPE：统计、合并、训练</h2>
+<h3>1. 统计的是相邻位置，还要乘语料权重</h3>
+<p>记录保存当前 IDs 与权重；<code>zip(ids, ids[1:])</code> 枚举相邻位置，计数乘记录权重。</p>
+<pre><code class="language-python">from collections import Counter
+
+def pair_counts(corpus):
+    counts = Counter()
+    for row in corpus:
+        ids = row["ids"]
+        for pair in zip(ids, ids[1:]):
+            counts[pair] += row["weight"]
+    return counts</code></pre>
+<p>按“频次降序、ID 对升序”确定下一条规则。</p>
+<h3>2. 合并必须从左向右、非重叠</h3>
+<p>对 <code>a a a</code> 合并 <code>(a,a)</code> 时，必须左到右非重叠替换，得到 <code>aa | a</code>。</p>
+<pre><code class="language-python">def merge_pair(ids, pair, new_id):
+    out, i = [], 0
+    while i &lt; len(ids):
+        if i + 1 &lt; len(ids) and (ids[i], ids[i + 1]) == tuple(pair):
+            out.append(new_id)
+            i += 2       # 两个输入位置一起消费
+        else:
+            out.append(ids[i])
+            i += 1
+    return out</code></pre>
+<p>合并函数返回新列表，避免遍历时修改原列表。</p>
+<div class="callout"><strong>频次不总等于实际节省量</strong><p><code>aaa</code> 有两次相邻匹配，却只能替换一次：频次不总等于实际节省量。</p></div>
+<h3>3. 训练循环：选一对、分配新 ID、重写语料</h3>
+<pre><code class="language-python">vocab = [bytes([i]) for i in range(256)]
+merges = []
+
+for rank in range(max_merges):
+    counts = pair_counts(corpus)
+    if not counts:
+        break
+    pair = min(counts, key=lambda p: (-counts[p], p))
+    new_id = len(vocab)
+    vocab.append(vocab[pair[0]] + vocab[pair[1]])
+    merges.append({"pair": list(pair), "id": new_id, "rank": rank})
+    corpus = [dict(row, ids=merge_pair(row["ids"], pair, new_id))
+              for row in corpus]</code></pre>
+<p><code>min</code> 的排序键是 <code>(-频次, pair)</code>；完整可运行实现见本节实验。</p>
+<p>新词表条目保存两个旧条目字节串的拼接。</p>
+<h3>什么时候停止？</h3>
+<p>最多合并 M 次，词表至多有 <code>256+M</code> 项；没有候选对时提前结束。</p>
+<p>全扫描版本便于理解；更大语料上的优化见“BPE 训练工程化”。</p>
+</section>
+
+<section id="encoding"><h2>编码：文本 → Token IDs</h2>
+<p>编码先把新文本转成 UTF-8 字节，再反复应用当前可用的最小 rank 规则。</p>
+<ol><li>在所有当前可应用的规则中，选择 <strong>rank 最小</strong>的那一条。</li><li>按这条规则，左到右非重叠合并。</li><li>在更新后的序列中重新检查，直到没有规则能应用。</li></ol>
+<p>编码复用既有规则，不根据新输入的频次重新训练或扩表。</p>
+<h3>完整编码例子：训练没见过的 lowest</h3>
+<p>使用全部规则编码训练中未出现的 <code>lowest</code>：</p>
+<pre><code>初始： l   | o   | w   | e   | s   | t
+ID：   108   111   119   101   115   116
+
+rank 0：l + o → lo
+       [256, 119, 101, 115, 116]
+
+rank 1：lo + w → low
+       [257, 101, 115, 116]
+
+结果： low | e | s | t
+当前没有 e+s、s+t 等合并规则，停止。</code></pre>
+<p>结果为 <code>low | e | s | t</code>，说明词表无需收录整个单词也能表示新输入。</p>
+<h3>同一个词，在不同训练阶段会怎样？</h3>
+<div class="table-wrap"><table><thead><tr><th>输入 lower</th><th>可用规则</th><th>编码结果</th></tr></thead><tbody><tr><td>未训练</td><td>0 条</td><td>l | o | w | e | r</td></tr><tr><td>训练 2 轮</td><td>rank 0～1</td><td>low | e | r</td></tr><tr><td>训练 5 轮</td><td>rank 0～4</td><td>low | er</td></tr><tr><td>训练 6 轮</td><td>rank 0～5</td><td>lower</td></tr></tbody></table></div>
+<p>不同训练阶段可用规则不同，切分也会变化：</p>
+<h3>为什么不能直接用最长前缀匹配？</h3>
+<p>另取规则表：先合并 <code>b+c</code>，再合并 <code>a+b</code>，最后合并 <code>bc+d</code>。</p>
+<pre><code>rank 0：b + c   → bc  （ID 256）
+rank 1：a + b   → ab  （ID 257）
+rank 2：bc + d  → bcd （ID 258）</code></pre>
+<p>编码 <code>abcd</code> 应先应用 rank 0，得到 <code>a|bc|d</code>，再成为 <code>a|bcd</code>，IDs 为 <code>[97,258]</code>。最长前缀匹配则会得到不同的 <code>ab|c|d</code>。</p>
+<p>因此编码必须遵守合并优先级，不能只看词表有哪些片段。</p>
+<h3>编码核心：按 rank，而不是按出现次数</h3>
+<pre><code class="language-python">def encode(text, rules):
+    ids = list(text.encode("utf-8"))
+    by_pair = {tuple(rule["pair"]): rule for rule in rules}
+    while len(ids) >= 2:
+        available = [by_pair[p] for p in zip(ids, ids[1:]) if p in by_pair]
+        if not available:
+            break
+        rule = min(available, key=lambda r: r["rank"])
+        ids = merge_pair(ids, rule["pair"], rule["id"])
+    return ids</code></pre>
+<p>此实现会重复扫描输入，重点在展示 rank 的行为。</p>
+</section>
+
+<section id="decoding"><h2>解码：Token IDs → 字节 → 文本</h2>
+<p><code>[257,101,115,116]</code> 查词表得到 <code>b&quot;low&quot;</code>、e、s、t，拼接后解码为 <code>lowest</code>。</p>
+<pre><code class="language-python">def decode(ids, vocab):
+    payload = b"".join(vocab[token] for token in ids)
+    return payload.decode("utf-8")</code></pre>
+<p>单 token 字节可能不是完整 UTF-8 字符，应拼接后统一解码。</p>
+<h3>训练里没出现中文，为什么还能编码“中”？</h3>
+<p>基础词表含全部 256 个字节，所以未见过的“中”仍可表示为 <code>[228,184,173]</code>。</p>
+<p>合法 Unicode 文本可无损往返；孤立代理项在浏览器中会被替换，Python 严格模式会报错。</p>
+<h3>BPE 的优势，也伴随取舍</h3>
+<ul><li><strong>常见片段更紧凑。</strong> 本课训练语料从 42 个 token 降到 12，但这是这份语料的结果，不是任意文本的压缩率承诺。保存词表也有额外成本，token 数减少并不等于文件总字节一定变少。</li><li><strong>覆盖与压缩分开处理。</strong> 字节基础单位提供覆盖，学到的合并提供常见模式压缩。新文本即使没有可用合并，仍可退回字节。</li><li><strong>词表扩大有成本。</strong> 语言模型通常需要与词表对应的输入向量和输出映射；词表越大，这些部分通常越占参数和计算资源，不能无限增加。</li><li><strong>语料分布影响切分效率。</strong> 某些语言或格式在训练中占比较小，可能合并得不充分。同样长度的可见文字，token 数不一定相同。</li><li><strong>它是贪心统计策略。</strong> 每轮选当前最高频对，不保证找到全局最优的分词或压缩方案；并列处理和预分词边界也会影响结果。</li></ul>
+</section>
+
+<section id="bpe-lab"><h2>实验：把 42 个位置，逐步合到 12 个</h2><p>先预测下一对，再点“合并一轮”；支持回退与重置。</p>
+<div class="experiment bpe-experiment"><div class="sample-buttons"><button type="button" id="bpe-back">回退一轮</button><button type="button" id="bpe-next">合并一轮</button><button type="button" id="bpe-reset">重置训练</button></div><p id="bpe-status" class="lab-status" role="status" aria-live="polite"></p><div class="metrics"><div><strong id="bpe-turn">0</strong><span>已完成轮次</span></div><div><strong id="bpe-vocab-size">256</strong><span>当前词表条目</span></div><div><strong id="bpe-total">42</strong><span>加权 token 总量</span></div></div>
+<h3>当前语料状态</h3><p class="caption">竖线仅标示 token 边界，不属于原文。</p><div id="bpe-corpus" class="table-wrap"></div><h3>下一轮：候选相邻对</h3><p class="caption">候选已按加权频次和 ID 对排序，替换采用左到右非重叠方式。</p><div id="bpe-candidates" class="table-wrap"></div><h3>已学规则与新增词表</h3><div id="bpe-rules" class="table-wrap"></div>
+<h3>换一段新文本，用当前规则编码</h3><label for="bpe-text"><strong>输入文本</strong> <span class="muted">最多 120 个码点；不改变上方训练状态</span></label><textarea id="bpe-text" rows="2" spellcheck="false">lowest</textarea><div class="sample-buttons"><button type="button" data-bpe-sample="lowest">未见单词 lowest</button><button type="button" data-bpe-sample="lower">训练词 lower</button><button type="button" data-bpe-sample="unicode">A中🙂</button><button type="button" data-bpe-sample="empty">清空输入</button></div><p id="bpe-input-status" class="lab-status" role="status" aria-live="polite"></p><dl><dt>编码前的 UTF-8 字节数量</dt><dd><code id="bpe-byte-count"></code></dd><dt>编码结果 token IDs</dt><dd><code id="bpe-ids"></code></dd><dt>结果片段（不完整 UTF-8 单元显示十六进制）</dt><dd><code id="bpe-pieces"></code></dd><dt>拼接全部字节后严格解码</dt><dd><code id="bpe-decoded"></code></dd></dl><h3>本次编码的逐步轨迹</h3><div id="bpe-encoding-steps" class="table-wrap"></div><p class="caption">本实验使用自定义规则，输入与计算均在本地完成。</p><noscript>实验需要 JavaScript；正文和折叠解析仍可阅读，也可以运行下方 Python 实验。</noscript></div>
+</section>
+
+<section id="practice"><h2>练习与逐步解析</h2><details class="supplement"><summary>自测与解析 · 8 题</summary><p>先给出数值或切分结果，再说理由。尤其不要把词表条目数、语料中的 token 数和规则条数混成一个概念。</p>
+<article class="exercise"><h3>01 · 为什么第一轮不是 o+w？</h3><p>在主语料中，l+o 与 o+w 分别出现几次？为什么选择 l+o？如果另一实现先合并 o+w，就一定写错了吗？</p><details class="answer"><summary>展开逐步解析</summary><p>两者都来自 low×5 与 lower×2，所以各 7 次。本课按整数对升序，(108,111) 小于 (111,119)，因此选 l+o。另一实现如果明确采用不同的并列决策规则，可能得到另一条合法轨迹；关键是实现、保存的规则与编码行为保持一致，而不是把本课并列选择当成唯一标准。</p></details></article>
+<article class="exercise"><h3>02 · 两轮之后，三个计数分别是多少？</h3><p>完成前两轮后，已学几条规则、词表有几个条目、加权 token 总量是多少？为什么词表增加而序列缩短？</p><details class="answer"><summary>展开逐步解析</summary><p>两条规则，新 ID 为 256 和 257；基础 256 项仍保留，所以词表共 258 项。加权总量为 42−7−7=28。词表描述“可以使用哪些单位”，序列描述“这次用了多少单位”，扩充可用的大单位可以减少序列长度，两者没有矛盾。</p></details></article>
+<article class="exercise"><h3>03 · aaa 的重叠陷阱</h3><p>只有一条权重为 2 的 aaa。相邻对 (a,a) 的加权频次是多少？执行一次非重叠替换后，语料加权 token 总量从多少降到多少？</p><details class="answer"><summary>展开逐步解析</summary><p>单份 aaa 有两个相邻位置匹配，所以频次为 2×2=4。每份只能从左侧合并一次，得到 aa|a，单份长度从 3 到 2。加权总量从 3×2=6 降到 2×2=4，只减少 2，而不是统计频次 4。</p></details></article>
+<article class="exercise"><h3>04 · 用已学规则编码 lowest</h3><p>完成主语料的六轮训练后，写出 lowest 的最终 ID 序列，并列出实际应用了哪些 rank。它为什么不使用 lower 对应的 ID 261？</p><details class="answer"><summary>展开逐步解析</summary><p>先用 rank 0 把 l+o 变成 256，再用 rank 1 把 lo+w 变成 257；剩下 e、s、t 没有可用合并，得到 [257,101,115,116]。lower 的字节是 l o w e r，而输入结尾是 e s t，没有 er，因此不能合成 lower。不能因为两词“看着相似”就替换成词表里的完整词。</p></details></article>
+<article class="exercise"><h3>05 · rank 与最长前缀，谁决定切分？</h3><p>使用正文另一套规则：先 b+c，再 a+b，再 bc+d。对 abcd，为什么最终是 a|bcd，而不是 ab|c|d？</p><details class="answer"><summary>展开逐步解析</summary><p>初始 a|b|c|d 同时存在可用的 b+c 与 a+b；前者 rank 0 优先于 rank 1，先得到 a|bc|d。此时 a+b 已不相邻且 b 不再独立，于是应用 rank 2，得到 a|bcd。词表里存在 ab，并不表示必须从最左侧优先取它。</p></details></article>
+<article class="exercise"><h3>06 · 没见过中文，还能往返吗？</h3><p>主语料没见过“中”。完成七轮训练后，用本课 tokenizer 编码“中”会得到哪些 ID？能否逐 token 独立按 UTF-8 解码？</p><details class="answer"><summary>展开逐步解析</summary><p>UTF-8 是 E4 B8 AD，即 [228,184,173]；规则只涉及英文片段，所以这三个单字节保持不变。单独 E4 是未完成的三字节序列，严格解码会报错。将三个 token 的字节拼起来后才可恢复“中”。基础 256 字节覆盖还在，不需要 UNK。</p></details></article>
+<article class="exercise"><h3>07 · 三个样本之间能合并吗？</h3><p>语料只有独立样本 a×1、b×1、c×1。按本课约定能学习 a+b 吗？如果训练预算是 100 轮，词表一定会到 356 项吗？</p><details class="answer"><summary>展开逐步解析</summary><p>不能跨样本边界统计，每段只有一个字节，没有段内相邻对。训练立即停止，仍是 256 个基础条目。合并预算是上限，不是保证实际学习到的条数；是否有可合并对也是停止条件。</p></details></article>
+<article class="exercise"><h3>08 · 新输入变了，规则会跟着变吗？</h3><p>如果新输入里 st 出现了一千次，编码器会不会当场给 st 分配一个新 ID？如果这样做，语言模型会遇到什么问题？</p><details class="answer"><summary>展开逐步解析</summary><p>不会。本课编码只应用训练好的规则，没有 st 规则就保留 s|t。临时扩充词表会产生原模型未配置的编号与向量映射，也破坏可重复的编码约定。需要更新 tokenizer 时，应显式管理词表与模型兼容性，而不是在普通编码过程中重新训练。</p></details></article>
+</details></section>
+
+<section id="recap"><h2>本地实验</h2><p>在仓库根目录运行。默认会打印全部七轮的 pair、频次、新 ID、片段与加权 token 总量，并编码 lowest：</p>
+<pre><code class="language-bash">python3 labs/03-bpe-algorithm/01-byte-bpe.py
+python3 labs/03-bpe-algorithm/01-byte-bpe.py --merges 2 --text lower
+python3 labs/03-bpe-algorithm/01-byte-bpe.py --merges 6 --text 'A中🙂'
+python3 -m unittest discover -s tests -p 'test_bpe*.py'</code></pre>
+<p><a href="../../labs/03-bpe-algorithm/01-byte-bpe.py">查看完整 Python 实验</a> · <a href="../../labs/03-bpe-algorithm/README.md">运行说明与预期输出</a>。实验本身仅用 Python 标准库；跨语言测试另使用工作区现有 Node.js，核对网页内核与 Python 的一致性。</p>
+<div class="recap"><strong>把这四句话带走</strong><ol><li>训练反复统计当前相邻对，按频次选合并，并保存有序规则。</li><li>编码使用既有规则的 rank，不重新训练，也不随意换成最长前缀匹配。</li><li>解码查字节词表，拼接后一次性按 UTF-8 还原，不能逐 token 强求完整字符。</li><li>基础字节负责覆盖，合并负责压缩；训练语料、边界和并列选择都会影响结果。</li></ol></div>
+
+</section>
+<section id="sources" class="sources"><h2>参考资料</h2><ul><li><a href="https://cookllm.com/docs/fundamentals/basics/tokenization/02-bpe-algorithm" target="_blank" rel="noopener">CookLLM · BPE 算法详解</a>：主题与公开章节结构。</li><li><a href="https://github.com/openai/tiktoken/blob/main/tiktoken/_educational.py" target="_blank" rel="noopener">OpenAI tiktoken · 教学实现</a>：可进一步对照字节词表、合并优先级与实际库的外围设计；本课没有复制其代码。</li><li><a href="https://aclanthology.org/P16-1162/" target="_blank" rel="noopener">Sennrich 等，2016 · Subword Units</a>：BPE 子词方法的进一步阅读入口。本文未逐段解读该论文。</li></ul></section>
