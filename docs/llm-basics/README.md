@@ -58,3 +58,13 @@ python3 scripts/build_llm_course.py
 ```
 
 普通阅读和课程页面重建不要求 draw.io。图形原理参考 CookLLM 公开主题结构，自行设计与绘制；会员受限正文及未能访问的交互内容未复制。条形图、热力图、旋转平面和缓存时间线沿用各课注明的教学数据与适用边界。
+
+## 浏览器 Python 样例
+
+`bpe-python-lab.html` 是独立的 BPE 编程实验，入口位于第二课与首页。读者可编辑 Python、运行合并、切换普通/重叠语料并检查六项结果。草稿仅保存在当前浏览器，代码由 Worker 内的真实 Python 执行。
+
+- `python-lab/`：初始代码、参考实现与检查器；页面由同名 content 源和课程生成器构建。
+- `python-lab.js`、`python-lab-worker.js`：编辑器、结果图与运行控制；停止或超过 8 秒会终止 Worker。
+- `vendor/pyodide/314.0.7/`：固定版本的本地运行文件及许可证，首次点击运行才加载。发布时须保留整个目录，不依赖第三方 CDN。
+
+此样例仅使用 Python 标准库，不提供 PyTorch、GPU 或服务器代码执行。浏览器验收图保存在 `previews/bpe-python-*.png`，不参与发布。

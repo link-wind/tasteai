@@ -18,7 +18,7 @@
     applySize();
   }
   // 复制正文代码；工具栏不参与源码文本。
-  document.querySelectorAll('main pre').forEach(pre=>{
+  document.querySelectorAll('main pre:not([data-editor-mirror])').forEach(pre=>{
     const code=pre.querySelector('code');if(!code)return;
     const block=document.createElement('div');block.className='code-block';
     const toolbar=document.createElement('div');toolbar.className='code-toolbar';
