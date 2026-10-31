@@ -1,5 +1,5 @@
 <div class="topline"><a href="index.html">课程目录</a><span>/ 原理精讲 / 基础知识 / 词元化</span><button id="font-toggle" aria-pressed="false">放大字号</button></div>
-<header><h1>Tokenization 基础</h1><p class="lead">文本如何变成模型输入</p></header>
+<header><h1>Tokenization 基础</h1><p class="lead">文本如何变成模型输入</p></header><div class="python-entry"><a href="01-utf8-lab.html">动手编写：把文本编码成 UTF-8 字节 →</a><span>Python · 运行 · 检查 · 逐行观察</span></div>
 <details class="learning-goals"><summary>本课要点与先修</summary><ul><li>给定一个小词表，亲手完成文本的编码与解码。</li><li>分清 token 编号、Unicode 码点与 UTF-8 字节，而不是把它们都叫“编码”。</li><li>解释字符级与字节级方案的取舍，并说明子词方法为什么有必要。</li></ul><p>先修：会读列表与字典。</p></details>
 <nav class="page-toc" aria-label="本页目录"><strong>本页目录</strong><ol><li><a href="#why">为什么需要 Tokenization？</a></li><li><a href="#character">从字符级 Tokenization 开始</a></li><li><a href="#limits">字符级方案的局限性</a></li><li><a href="#unicode">Unicode 是什么？</a></li><li><a href="#utf8">UTF-8：码点怎样变成字节？</a></li><li><a href="#bytes">纯字节与子词的取舍</a></li><li><a href="#playground">同一段文字，三种表示</a></li><li><a href="#practice">练习</a></li><li><a href="#recap">小结</a></li><li><a href="#sources">参考资料</a></li></ol></nav>
 

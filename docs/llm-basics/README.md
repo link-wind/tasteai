@@ -68,3 +68,9 @@ python3 scripts/build_llm_course.py
 - `vendor/pyodide/314.0.7/`：固定版本的本地运行文件及许可证，首次点击运行才加载。发布时须保留整个目录，不依赖第三方 CDN。
 
 此样例仅使用 Python 标准库，不提供 PyTorch、GPU 或服务器代码执行。浏览器验收图保存在 `previews/bpe-python-*.png`，不参与发布。
+
+## 十二课编程实验
+
+`coding-labs.html` 汇总12个练习。BPE保留原专用检查器；其余11题由 `python-lab/exercises.json` 定义教学说明、输入及独立预期结果，各题目录维护 `starter.py` 和 `solution.py`。
+
+`exercise-harness.py` 统一执行和检查，通过Worker初始化选择题号。`scripts/build_foundation_exercises.py` 由课程生成器调用生成11个实验页及目录。所有实验复用本地运行时；不同题目草稿按题号隔离。每题提供两组预置输入，源码也可下载后自行调整调用参数。数学练习使用小规模标准库实现，非PyTorch/GPU运行环境。修改题目后运行课程生成器与全量unittest。

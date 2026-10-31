@@ -5,7 +5,7 @@
   const editor=$('python-code'),mirror=$('python-highlight'),status=$('python-status'),output=$('python-result');
   const scenario=$('python-scenario'),run=$('python-run'),check=$('python-check'),stop=$('python-stop');
   const starter=editor.defaultValue,solution=$('python-solution').content.textContent.trim()+'\n';
-  const draftKey='tasteai.bpe-python.code.v1';
+  const draftKey=lab.dataset.exercise?'tasteai.python.'+lab.dataset.exercise+'.v1':'tasteai.bpe-python.code.v1';
   let traceSteps=[],traceIndex=0,playTimer=null;
   let worker=null,ready=false,busy=false,requestId=0,pending=null,timer=null;
   const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -51,10 +51,29 @@
   }
   function el(tag,text,cls){const node=document.createElement(tag);if(text!==undefined)node.textContent=String(text);if(cls)node.className=cls;return node;}
   function tokens(ids,pieces){const band=el('div',undefined,'python-token-band');ids.forEach((id,i)=>{const chip=el('span',undefined,'python-token');chip.append(el('b',JSON.stringify(pieces[i])),el('small','ID '+id));chip.dataset.tokenId=String(id);band.append(chip);});return band;}
+  function showVisual(data){
+    output.append(el('h3',data.title),el('p','输入参数：'),el('pre',JSON.stringify(data.input,null,2),'python-console'));
+    const figure=el('figure',undefined,'exercise-result-figure');figure.setAttribute('aria-label','你的 Python 返回的结果图');
+    let rows=0;
+    function draw(value,path){
+      if(rows>=60)return;
+      if(Array.isArray(value)&&value.some(Array.isArray)){value.forEach((v,i)=>draw(v,path+'['+i+']'));return;}
+      rows++;const row=el('div',undefined,'exercise-vector');row.append(el('strong',path));
+      const values=Array.isArray(value)?value:[value];
+      const scale=Math.max(1,...values.filter(v=>typeof v==='number').map(Math.abs));
+      const band=el('div',undefined,'exercise-cells');
+      values.slice(0,80).forEach((v,i)=>{const cell=el('div',undefined,'exercise-cell');cell.append(el('small',i),el('code',typeof v==='number'?Number(v.toPrecision(7)):JSON.stringify(v)));
+        if(typeof v==='number'){const bar=el('span',undefined,'exercise-bar');bar.style.width=(Math.abs(v)/scale*100)+'%';bar.dataset.negative=String(v<0);cell.append(bar);}band.append(cell);});
+      if(!values.length)band.append(el('span','[] 空列表'));row.append(band);figure.append(row);
+    }
+    draw(data.value,'输出');figure.append(el('figcaption','每格对应一个返回元素；条形长度按本行最大绝对值归一化，红色表示负数。最多显示60行，每行80项；完整输出见下方。'));output.append(figure);
+    const detail=el('details',undefined,'supplement');detail.append(el('summary','查看完整 Python 返回值'),el('pre',JSON.stringify(data.value,null,2),'python-console'));output.append(detail);
+  }
   function show(payload,mode){
     output.replaceChildren();
     if(mode==='trace'&&payload.trace?.length){traceSteps=payload.trace;traceIndex=0;$('python-trace-panel').hidden=false;drawTrace();}
     if(payload.trace_truncated)output.append(el('p','轨迹超过 1500 步，仅回放前 1500 步。'));
+    if(payload.visual)showVisual(payload.visual);
     if(payload.experiment){
       const data=payload.experiment;
       const heading=el('h3','候选：'+data.pair_pieces.map(s=>JSON.stringify(s)).join(' + ')+' → '+JSON.stringify(data.new_piece));output.append(heading);
@@ -76,12 +95,12 @@
     }
     if(payload.error){output.append(el('h3','Python 报错'),el('pre',payload.error,'python-console'));}
     if(payload.stdout){output.append(el('h3','标准输出'),el('pre',payload.stdout,'python-console'));}
-    const all=mode==='check'&&payload.checks.length===6&&payload.checks.every(t=>t.passed);
+    const all=mode==='check'&&payload.checks.length>0&&payload.checks.every(t=>t.passed);
     if(!payload.ok)setStatus('代码执行出错；编辑器已保留，请查看错误后重试。','error');
-    else if(mode==='check')setStatus(all?'全部检查通过。试试切换“重叠匹配”语料。':'检查完成，仍有未通过项。可以先看提示再修改。',all?'success':'feedback');
+    else if(mode==='check')setStatus(all?(lab.dataset.exercise?'全部检查通过。试试切换另一组输入。':'全部检查通过。试试切换“重叠匹配”语料。'):'检查完成，仍有未通过项。可以先看提示再修改。',all?'success':'feedback');
     else if(mode==='trace')setStatus('轨迹已准备好。点击下一步观察代码与变量。','success');
     else if(payload.experiment?.before===payload.experiment?.after)setStatus('Python 已运行，本轮尚未减少 token。试着补全 TODO。','feedback');
-    else setStatus('Python 已运行。修改代码或切换语料，再观察合并结果。','success');
+    else setStatus('Python 已运行。修改代码或切换输入，再观察结果。','success');
   }
   function execute(){
     if(!pending||!worker)return;
@@ -106,7 +125,7 @@
         else if(data.type==='error')terminate('Python 加载或执行失败：'+data.error+' 请重试。','error');
       };
       worker.onerror=()=>{if(worker===currentWorker)terminate('Python 运行时未能加载。请检查网络后重试；代码已保留。','error');};
-      worker.postMessage({type:'init',id:pending.id,harnessURL:new URL(lab.dataset.harness,location.href).href});
+      worker.postMessage({type:'init',id:pending.id,exercise:lab.dataset.exercise,configURL:lab.dataset.config?new URL(lab.dataset.config,location.href).href:undefined,harnessURL:new URL(lab.dataset.harness,location.href).href});
     }catch(error){terminate('无法启动 Python：'+error.message,'error');}
   }
   try{const saved=localStorage.getItem(draftKey);if(saved&&saved.length<=40000)editor.value=saved;}catch{}
@@ -122,8 +141,8 @@
   stop.addEventListener('click',()=>terminate('已停止。代码已保留，下次运行会重新初始化 Python。'));
   $('python-reset').addEventListener('click',()=>load(starter));
   $('python-load-solution').addEventListener('click',()=>load(solution));
-  scenario.addEventListener('change',()=>{clearTrace();empty('语料已切换，请重新运行代码。');setStatus('语料已切换。');});
-  $('python-download').addEventListener('click',()=>{const url=URL.createObjectURL(new Blob([editor.value],{type:'text/x-python;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='tasteai-bpe.py';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+  scenario.addEventListener('change',()=>{clearTrace();empty('输入已切换，请重新运行代码。');setStatus('语料已切换。');});
+  $('python-download').addEventListener('click',()=>{const url=URL.createObjectURL(new Blob([editor.value],{type:'text/x-python;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=lab.dataset.exercise?'tasteai-'+lab.dataset.exercise+'.py':'tasteai-bpe.py';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
   window.addEventListener('pagehide',()=>{pauseTrace();clearTimeout(timer);worker?.terminate();worker=null;ready=false;pending=null;setBusy(false);});
   paint();editor.closest('.python-editor').classList.add('editor-enabled');setBusy(false);
 })();
