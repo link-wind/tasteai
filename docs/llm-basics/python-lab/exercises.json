@@ -1,26 +1,111 @@
 [
   {
-    "id": "01-utf8",
+    "id": "01-character-tokenizer",
     "lesson": "01-tokenization-basics.html",
-    "title": "把文本编码成 UTF-8 字节",
-    "task": "返回文本的 UTF-8 字节编号列表，保留空白，不做规范化。",
-    "function": "encode_bytes",
+    "course": 1,
+    "title": "实现字符级 Tokenizer",
+    "function": "character_tokenizer",
+    "targets": [
+      "character_tokenizer"
+    ],
+    "task": "建立词表、编码、解码及未知字符策略",
+    "stages": [
+      "固定排序词表，构建字符到ID映射。",
+      "未知字符使用词表外的UNK编号，解码明确返回[UNK]。"
+    ],
     "cases": [
       {
-        "name": "ASCII",
+        "name": "固定词表编码",
         "args": [
-          "Hi"
+          "aba"
         ],
+        "path": "ids",
         "expected": [
-          72,
-          105
+          0,
+          1,
+          0
         ]
       },
       {
-        "name": "中文与emoji",
+        "name": "未知字符",
+        "args": [
+          "ab",
+          "ac"
+        ],
+        "path": "decoded",
+        "expected": "a[UNK]"
+      },
+      {
+        "name": "组合字符保留",
+        "args": [
+          "é"
+        ],
+        "path": "decoded",
+        "expected": "é"
+      },
+      {
+        "name": "空文本",
+        "args": [
+          ""
+        ],
+        "path": "ids",
+        "expected": []
+      }
+    ],
+    "scenarios": [
+      {
+        "label": "训练并编码混合文本",
+        "args": [
+          "A中🙂A"
+        ]
+      },
+      {
+        "label": "固定词表遇到新字符",
+        "args": [
+          "abc",
+          "cab猫"
+        ]
+      }
+    ],
+    "views": [
+      [
+        "tokens",
+        "字符与ID",
+        "ids"
+      ],
+      [
+        "text",
+        "解码",
+        "decoded"
+      ]
+    ],
+    "hints": [
+      "固定排序词表，构建字符到ID映射。",
+      "未知字符使用词表外的UNK编号，解码明确返回[UNK]。"
+    ],
+    "note": "字符按Unicode码点切分，不等同于视觉字素。"
+  },
+  {
+    "id": "01-byte-tokenizer",
+    "lesson": "01-tokenization-basics.html",
+    "course": 1,
+    "title": "实现字节级 Tokenizer",
+    "function": "byte_tokenizer",
+    "targets": [
+      "byte_tokenizer"
+    ],
+    "task": "UTF-8编码、字节ID、字符跨度及完整解码",
+    "stages": [
+      "逐字符累计字节跨度。",
+      "编码后按字节重组解码，验证往返。"
+    ],
+    "cases": [
+      {
+        "name": "UTF8字节",
         "args": [
           "A中🙂"
         ],
+        "path": "ids",
         "expected": [
           65,
           228,
@@ -33,312 +118,949 @@
         ]
       },
       {
-        "name": "空输入",
+        "name": "字符跨度",
+        "args": [
+          "A中🙂"
+        ],
+        "path": "spans",
+        "expected": [
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            4
+          ],
+          [
+            4,
+            8
+          ]
+        ]
+      },
+      {
+        "name": "空串",
         "args": [
           ""
         ],
-        "expected": []
-      },
-      {
-        "name": "组合重音",
-        "args": [
-          "é"
-        ],
-        "expected": [
-          101,
-          204,
-          129
-        ]
+        "path": "decoded",
+        "expected": ""
       },
       {
         "name": "保留空白",
         "args": [
           " a\n"
         ],
-        "expected": [
-          32,
-          97,
-          10
-        ]
+        "path": "decoded",
+        "expected": " a\n"
       }
     ],
     "scenarios": [
       {
-        "label": "混合文本：A中🙂",
+        "label": "混合文本",
         "args": [
           "A中🙂"
         ]
       },
       {
-        "label": "组合重音：e + ◌́",
+        "label": "组合重音与空白",
         "args": [
-          "é"
+          "é \n"
         ]
       }
     ],
-    "hints": [
-      "先调用字符串的 encode(\"utf-8\")。",
-      "bytes 转成 list 后，每项都是 0～255 的整数。"
+    "views": [
+      [
+        "tokens",
+        "字节ID",
+        "ids"
+      ],
+      [
+        "matrix",
+        "字符字节跨度",
+        "spans"
+      ],
+      [
+        "text",
+        "解码",
+        "decoded"
+      ]
     ],
-    "note": "字节编号不是任何真实模型的完整词表 ID。"
+    "hints": [
+      "逐字符累计字节跨度。",
+      "编码后按字节重组解码，验证往返。"
+    ],
+    "note": ""
   },
   {
-    "id": "03-pretokenization",
-    "lesson": "03-gpt-tokenizers.html",
-    "title": "动手写预分词边界",
-    "task": "将连续 ASCII 字母、每段最多 3 个数字、连续空白分别成组；其余字符每个单独成组。",
-    "function": "split_pieces",
+    "id": "02-bpe-training",
+    "lesson": "02-bpe-algorithm.html",
+    "course": 2,
+    "title": "从零实现 BPE 训练",
+    "function": "train_bpe",
+    "targets": [
+      "pair_counts",
+      "merge_tokens",
+      "train_bpe"
+    ],
+    "task": "加权统计相邻对；左到右非重叠合并；迭代选择最高频pair并更新词表与语料",
+    "stages": [
+      "实现计数与非重叠替换。",
+      "频次相同按pair字典序选择，分配256起的新ID。",
+      "每轮记录合并规则及加权序列长度。"
+    ],
     "cases": [
       {
-        "name": "数字分三位",
+        "name": "阶段：非重叠替换",
         "args": [
-          "abc12345!"
+          [
+            97,
+            97,
+            97
+          ],
+          [
+            97,
+            97
+          ],
+          256
         ],
+        "path": "",
         "expected": [
-          "abc",
-          "123",
-          "45",
-          "!"
+          256,
+          97
+        ],
+        "function": "merge_tokens"
+      },
+      {
+        "name": "首轮规则",
+        "args": [
+          [
+            [
+              "low",
+              5
+            ],
+            [
+              "lower",
+              2
+            ],
+            [
+              "new",
+              4
+            ],
+            [
+              "newer",
+              1
+            ]
+          ],
+          1
+        ],
+        "path": "merges",
+        "expected": [
+          [
+            108,
+            111,
+            256
+          ]
         ]
       },
       {
-        "name": "保留空白",
+        "name": "完整训练长度",
         "args": [
-          " a\n"
+          [
+            [
+              "low",
+              5
+            ],
+            [
+              "lower",
+              2
+            ],
+            [
+              "new",
+              4
+            ],
+            [
+              "newer",
+              1
+            ]
+          ],
+          7
         ],
+        "path": "totals",
         "expected": [
-          " ",
-          "a",
-          "\n"
+          42,
+          35,
+          28,
+          23,
+          18,
+          15,
+          13,
+          12
         ]
       },
       {
-        "name": "中文不吞并",
+        "name": "重叠",
         "args": [
-          "你好🙂"
+          [
+            [
+              "aaa",
+              2
+            ]
+          ],
+          1
         ],
+        "path": "records",
         "expected": [
-          "你",
-          "好",
-          "🙂"
+          [
+            256,
+            97
+          ]
+        ]
+      },
+      {
+        "name": "空语料",
+        "args": [
+          [],
+          3
+        ],
+        "path": "merges",
+        "expected": []
+      }
+    ],
+    "scenarios": [
+      {
+        "label": "普通语料训练7轮",
+        "args": [
+          [
+            [
+              "low",
+              5
+            ],
+            [
+              "lower",
+              2
+            ],
+            [
+              "new",
+              4
+            ],
+            [
+              "newer",
+              1
+            ]
+          ],
+          7
+        ]
+      },
+      {
+        "label": "重叠语料训练",
+        "args": [
+          [
+            [
+              "aaa",
+              2
+            ],
+            [
+              "aaaaa",
+              1
+            ]
+          ],
+          3
+        ]
+      }
+    ],
+    "views": [
+      [
+        "curve",
+        "每轮token总量",
+        "totals"
+      ],
+      [
+        "merges",
+        "合并规则",
+        "merges"
+      ],
+      [
+        "tokens",
+        "训练后的语料",
+        "records"
+      ]
+    ],
+    "hints": [
+      "实现计数与非重叠替换。",
+      "频次相同按pair字典序选择，分配256起的新ID。",
+      "每轮记录合并规则及加权序列长度。"
+    ],
+    "note": ""
+  },
+  {
+    "id": "02-bpe-codec",
+    "lesson": "02-bpe-algorithm.html",
+    "course": 2,
+    "title": "实现 BPE 编码与解码",
+    "function": "encode_bpe",
+    "targets": [
+      "encode_bpe"
+    ],
+    "task": "按已学合并rank编码，并重建字节词表完成解码",
+    "stages": [
+      "先重建新token的字节串。",
+      "每步选择当前相邻候选中rank最小的一对。",
+      "合并到无候选，再重组字节解码。"
+    ],
+    "cases": [
+      {
+        "name": "规则编码",
+        "args": [
+          "low",
+          [
+            [
+              108,
+              111,
+              256
+            ],
+            [
+              256,
+              119,
+              257
+            ]
+          ]
+        ],
+        "path": "ids",
+        "expected": [
+          257
+        ]
+      },
+      {
+        "name": "未见字节",
+        "args": [
+          "猫",
+          [
+            [
+              108,
+              111,
+              256
+            ],
+            [
+              256,
+              119,
+              257
+            ]
+          ]
+        ],
+        "path": "decoded",
+        "expected": "猫"
+      },
+      {
+        "name": "部分命中",
+        "args": [
+          "lower",
+          [
+            [
+              108,
+              111,
+              256
+            ],
+            [
+              256,
+              119,
+              257
+            ]
+          ]
+        ],
+        "path": "ids",
+        "expected": [
+          257,
+          101,
+          114
         ]
       },
       {
         "name": "空文本",
         "args": [
-          ""
+          "",
+          [
+            [
+              108,
+              111,
+              256
+            ],
+            [
+              256,
+              119,
+              257
+            ]
+          ]
         ],
+        "path": "ids",
         "expected": []
-      },
-      {
-        "name": "标点与大小写",
-        "args": [
-          "Hi,AI!"
-        ],
-        "expected": [
-          "Hi",
-          ",",
-          "AI",
-          "!"
-        ]
       }
     ],
     "scenarios": [
       {
-        "label": "字母、数字和空白",
+        "label": "已学词与新后缀",
         "args": [
-          "Hello 1234567!"
+          "lowest",
+          [
+            [
+              108,
+              111,
+              256
+            ],
+            [
+              256,
+              119,
+              257
+            ]
+          ]
         ]
       },
       {
-        "label": "中文与emoji",
+        "label": "中英文混合",
         "args": [
-          "你好 AI🙂\n"
+          "low猫",
+          [
+            [
+              108,
+              111,
+              256
+            ],
+            [
+              256,
+              119,
+              257
+            ]
+          ]
         ]
       }
     ],
-    "hints": [
-      "使用 re.findall，让每个分支覆盖一种单位。",
-      "数字分支使用 [0-9]{1,3}；最后一个分支接住其余单字符。"
+    "views": [
+      [
+        "tokens",
+        "编码ID",
+        "ids"
+      ],
+      [
+        "text",
+        "token字节",
+        "pieces"
+      ],
+      [
+        "text",
+        "解码",
+        "decoded"
+      ]
     ],
-    "note": "这是明确限定的教学规则，不复刻 GPT 的正则、BPE 词表或真实 token 数。"
+    "hints": [
+      "先重建新token的字节串。",
+      "每步选择当前相邻候选中rank最小的一对。",
+      "合并到无候选，再重组字节解码。"
+    ],
+    "note": ""
   },
   {
-    "id": "04-pair-counts",
-    "lesson": "04-bpe-engineering.html",
-    "title": "聚合加权 pair 频次",
-    "task": "统计每条 token 序列内相邻 pair 的频次，乘记录权重；返回按 pair 排序的 [左ID, 右ID, 频次]。",
-    "function": "weighted_pairs",
+    "id": "03-pretokenized-bpe",
+    "lesson": "03-gpt-tokenizers.html",
+    "course": 3,
+    "title": "实现带预分词边界的 Byte BPE",
+    "function": "pretokenized_bpe",
+    "targets": [
+      "pretokenized_bpe"
+    ],
+    "task": "保留预分词边界，在各片段内运行完整BPE并还原文本",
+    "stages": [
+      "正则覆盖所有字符，不能丢空格或换行。",
+      "每个片段独立编码，禁止跨片段合并。"
+    ],
     "cases": [
       {
-        "name": "重复与权重",
+        "name": "数字分组",
         "args": [
+          "12345",
+          []
+        ],
+        "path": "parts",
+        "expected": [
+          "123",
+          "45"
+        ]
+      },
+      {
+        "name": "保留空白",
+        "args": [
+          "a \n",
+          []
+        ],
+        "path": "decoded",
+        "expected": "a \n"
+      },
+      {
+        "name": "禁止跨边界",
+        "args": [
+          "a b",
           [
             [
-              [
-                1,
-                2,
-                1,
-                2
-              ],
-              3
-            ],
-            [
-              [
-                1,
-                2
-              ],
-              2
+              97,
+              32,
+              256
             ]
           ]
         ],
+        "path": "ids",
         "expected": [
+          97,
+          32,
+          98
+        ]
+      },
+      {
+        "name": "混合文本",
+        "args": [
+          "猫🙂",
+          []
+        ],
+        "path": "decoded",
+        "expected": "猫🙂"
+      }
+    ],
+    "scenarios": [
+      {
+        "label": "文本边界与BPE",
+        "args": [
+          "low 1234567!",
           [
-            1,
-            2,
-            8
+            [
+              108,
+              111,
+              256
+            ],
+            [
+              256,
+              119,
+              257
+            ]
+          ]
+        ]
+      },
+      {
+        "label": "禁止跨空白合并",
+        "args": [
+          "a b",
+          [
+            [
+              97,
+              32,
+              256
+            ]
+          ]
+        ]
+      }
+    ],
+    "views": [
+      [
+        "tokens",
+        "预分词片段",
+        "parts"
+      ],
+      [
+        "tokens",
+        "BPE输出",
+        "ids"
+      ],
+      [
+        "text",
+        "解码",
+        "decoded"
+      ]
+    ],
+    "hints": [
+      "正则覆盖所有字符，不能丢空格或换行。",
+      "每个片段独立编码，禁止跨片段合并。"
+    ],
+    "note": "这里是明确限定的教学预分词规则；真实GPT对比见本课配套Notebook。"
+  },
+  {
+    "id": "04-weighted-training",
+    "lesson": "04-bpe-engineering.html",
+    "course": 4,
+    "title": "实现加权语料 BPE 训练",
+    "function": "train_bpe",
+    "targets": [
+      "pair_counts",
+      "train_bpe"
+    ],
+    "task": "聚合每条记录的权重；用加权统计执行完整训练",
+    "stages": [
+      "计数必须乘以权重，不能跨记录边界。",
+      "验证压缩记录与重复展开语料的合并规则一致。"
+    ],
+    "cases": [
+      {
+        "name": "权重改变首选",
+        "args": [
+          [
+            [
+              "ab",
+              1
+            ],
+            [
+              "cd",
+              4
+            ]
           ],
-          [
-            2,
-            1,
-            3
-          ]
-        ]
-      },
-      {
-        "name": "不跨记录",
-        "args": [
-          [
-            [
-              [
-                1
-              ],
-              2
-            ],
-            [
-              [
-                2
-              ],
-              3
-            ]
-          ]
+          1
         ],
-        "expected": []
-      },
-      {
-        "name": "重叠pair",
-        "args": [
-          [
-            [
-              [
-                1,
-                1,
-                1
-              ],
-              2
-            ]
-          ]
-        ],
+        "path": "merges",
         "expected": [
           [
-            1,
-            1,
-            4
+            99,
+            100,
+            256
           ]
         ]
+      },
+      {
+        "name": "零权重不参与",
+        "args": [
+          [
+            [
+              "ab",
+              0
+            ]
+          ],
+          2
+        ],
+        "path": "merges",
+        "expected": []
       },
       {
         "name": "空记录",
         "args": [
-          []
+          [
+            [
+              "",
+              2
+            ],
+            [
+              "a",
+              4
+            ]
+          ],
+          3
         ],
-        "expected": []
+        "path": "totals",
+        "expected": [
+          4
+        ]
       },
       {
-        "name": "零权重",
+        "name": "零步",
         "args": [
           [
             [
-              [
-                1,
-                2
-              ],
-              0
+              "low",
+              5
+            ],
+            [
+              "lower",
+              2
+            ],
+            [
+              "new",
+              4
+            ],
+            [
+              "newer",
+              1
             ]
-          ]
+          ],
+          0
         ],
-        "expected": []
+        "path": "totals",
+        "expected": [
+          42
+        ]
+      },
+      {
+        "name": "加权训练",
+        "args": [
+          [
+            [
+              "low",
+              5
+            ],
+            [
+              "lower",
+              2
+            ],
+            [
+              "new",
+              4
+            ],
+            [
+              "newer",
+              1
+            ]
+          ],
+          2
+        ],
+        "path": "totals",
+        "expected": [
+          42,
+          35,
+          28
+        ]
       }
     ],
     "scenarios": [
       {
-        "label": "重复记录与权重",
+        "label": "高权重词优先",
         "args": [
           [
             [
-              [
-                1,
-                2,
-                1,
-                2
-              ],
-              3
+              "ab",
+              1
             ],
             [
-              [
-                1,
-                2
-              ],
-              2
+              "cd",
+              4
             ]
+          ],
+          2
+        ]
+      },
+      {
+        "label": "重复压缩语料",
+        "args": [
+          [
+            [
+              "low",
+              5
+            ],
+            [
+              "lower",
+              2
+            ],
+            [
+              "new",
+              4
+            ],
+            [
+              "newer",
+              1
+            ]
+          ],
+          4
+        ]
+      }
+    ],
+    "views": [
+      [
+        "curve",
+        "加权token总量",
+        "totals"
+      ],
+      [
+        "merges",
+        "加权合并规则",
+        "merges"
+      ]
+    ],
+    "hints": [
+      "计数必须乘以权重，不能跨记录边界。",
+      "验证压缩记录与重复展开语料的合并规则一致。"
+    ],
+    "note": ""
+  },
+  {
+    "id": "04-local-training",
+    "lesson": "04-bpe-engineering.html",
+    "course": 4,
+    "title": "实现倒排索引与局部更新",
+    "function": "train_local_bpe",
+    "targets": [
+      "train_local_bpe"
+    ],
+    "task": "维护pair倒排索引，扣旧计数、替换、加新计数，只更新受影响记录",
+    "stages": [
+      "用pair到记录ID集合定位受影响语料。",
+      "扣除旧序列全部pair统计，再添加新序列统计并维护索引。",
+      "过期计数为0的候选不能再被选择。"
+    ],
+    "cases": [
+      {
+        "name": "与全量同规则",
+        "args": [
+          [
+            [
+              "low",
+              5
+            ],
+            [
+              "lower",
+              2
+            ],
+            [
+              "new",
+              4
+            ],
+            [
+              "newer",
+              1
+            ]
+          ],
+          2
+        ],
+        "path": "merges",
+        "expected": [
+          [
+            108,
+            111,
+            256
+          ],
+          [
+            256,
+            119,
+            257
           ]
         ]
       },
       {
-        "label": "边界：不能跨记录",
+        "name": "重叠扣除",
         "args": [
           [
             [
-              [
-                1
-              ],
+              "aaa",
               2
+            ]
+          ],
+          2
+        ],
+        "path": "totals",
+        "expected": [
+          6,
+          4,
+          2
+        ]
+      },
+      {
+        "name": "空语料",
+        "args": [
+          [],
+          2
+        ],
+        "path": "merges",
+        "expected": []
+      },
+      {
+        "name": "局部访问",
+        "args": [
+          [
+            [
+              "ab",
+              3
             ],
             [
-              [
-                2
-              ],
-              3
+              "cd",
+              1
             ]
-          ]
+          ],
+          1
+        ],
+        "path": "touched",
+        "expected": [
+          1
         ]
       }
     ],
-    "hints": [
-      "在每条记录内部 zip(ids, ids[1:])。",
-      "Counter 的增量是 weight，不是 1；最后排序以便稳定比较。"
-    ],
-    "note": "本题练聚合内核，不模拟并行性能或堆调度。"
-  },
-  {
-    "id": "05-logits",
-    "lesson": "05-token-ids-to-logits.html",
-    "title": "从隐藏状态算 logits",
-    "task": "对每个位置 h 与词表每行权重 w 做点积，返回 [T,V] logits。",
-    "function": "project_logits",
-    "cases": [
+    "scenarios": [
       {
-        "name": "两位置三词",
+        "label": "倒排更新",
         "args": [
           [
             [
-              1,
+              "low",
+              5
+            ],
+            [
+              "lower",
               2
             ],
             [
-              3,
+              "new",
               4
+            ],
+            [
+              "newer",
+              1
             ]
+          ],
+          7
+        ]
+      },
+      {
+        "label": "重叠pair的计数更新",
+        "args": [
+          [
+            [
+              "aaa",
+              2
+            ],
+            [
+              "aaaaa",
+              1
+            ]
+          ],
+          3
+        ]
+      }
+    ],
+    "views": [
+      [
+        "curve",
+        "token总量",
+        "totals"
+      ],
+      [
+        "curve",
+        "每轮访问记录数",
+        "touched"
+      ],
+      [
+        "merges",
+        "合并规则",
+        "merges"
+      ]
+    ],
+    "hints": [
+      "用pair到记录ID集合定位受影响语料。",
+      "扣除旧序列全部pair统计，再添加新序列统计并维护索引。",
+      "过期计数为0的候选不能再被选择。"
+    ],
+    "note": "本实现扫描当前有效计数选候选，不采用堆；重点验证局部更新正确性。"
+  },
+  {
+    "id": "05-lm-forward",
+    "lesson": "05-token-ids-to-logits.html",
+    "course": 5,
+    "title": "实现 Token IDs 到 Logits 的前向流程",
+    "function": "tiny_lm",
+    "targets": [
+      "tiny_lm"
+    ],
+    "task": "Embedding查表、因果上下文层、词表投影和softmax",
+    "stages": [
+      "查表得到[T,D]隐藏状态。",
+      "教学上下文层使用前缀平均，仅访问当前及过去位置。",
+      "投影得到[T,V]，最后一行用于预测下一token。"
+    ],
+    "cases": [
+      {
+        "name": "前向数值",
+        "args": [
+          [
+            0,
+            1
           ],
           [
             [
@@ -351,130 +1073,41 @@
             ],
             [
               1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
               -1
+            ],
+            [
+              0,
+              1,
+              1
             ]
           ]
         ],
+        "path": "logits",
         "expected": [
           [
             1,
-            2,
-            -1
-          ],
-          [
-            3,
-            4,
-            -1
-          ]
-        ]
-      },
-      {
-        "name": "零向量",
-        "args": [
-          [
-            [
-              0,
-              0
-            ]
-          ],
-          [
-            [
-              2,
-              3
-            ],
-            [
-              -1,
-              4
-            ]
-          ]
-        ],
-        "expected": [
-          [
             0,
+            -1
+          ],
+          [
+            0.5,
+            0.5,
             0
           ]
         ]
       },
       {
-        "name": "空序列",
-        "args": [
-          [],
-          [
-            [
-              1,
-              2
-            ]
-          ]
-        ],
-        "expected": []
-      },
-      {
-        "name": "负数",
+        "name": "单位置",
         "args": [
           [
-            [
-              -1,
-              2
-            ]
-          ],
-          [
-            [
-              2,
-              -3
-            ]
-          ]
-        ],
-        "expected": [
-          [
-            -8
-          ]
-        ]
-      },
-      {
-        "name": "最后位置",
-        "args": [
-          [
-            [
-              1
-            ],
-            [
-              7
-            ]
-          ],
-          [
-            [
-              2
-            ],
-            [
-              3
-            ]
-          ]
-        ],
-        "expected": [
-          [
-            2,
-            3
-          ],
-          [
-            14,
-            21
-          ]
-        ]
-      }
-    ],
-    "scenarios": [
-      {
-        "label": "T=2，V=3",
-        "args": [
-          [
-            [
-              1,
-              2
-            ],
-            [
-              3,
-              4
-            ]
+            2
           ],
           [
             [
@@ -487,78 +1120,27 @@
             ],
             [
               1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
               -1
-            ]
-          ]
-        ]
-      },
-      {
-        "label": "负隐藏状态",
-        "args": [
-          [
-            [
-              -1,
-              2
-            ]
-          ],
-          [
-            [
-              2,
-              -3
             ],
             [
               0,
-              1
-            ]
-          ]
-        ]
-      }
-    ],
-    "hints": [
-      "外层循环遍历位置，内层遍历词表行。",
-      "每个 logit 是 h 和 w 的点积；不要在这里先做 softmax。"
-    ],
-    "note": "使用小矩阵展开计算，不涉及训练或真实模型权重。"
-  },
-  {
-    "id": "06-tied-weights",
-    "lesson": "06-embedding-lm-head.html",
-    "title": "用同一张词表查表和投影",
-    "task": "先按 token ID 从 embedding 查表，再用同一张表为每个隐藏向量计算词表点积。返回 [T,V]。",
-    "function": "tied_logits",
-    "cases": [
-      {
-        "name": "查表再点积",
-        "args": [
-          [
-            0,
-            1
-          ],
-          [
-            [
-              1,
-              0
-            ],
-            [
-              0,
-              2
-            ],
-            [
               1,
               1
             ]
           ]
         ],
+        "path": "hidden",
         "expected": [
           [
             1,
-            0,
             1
-          ],
-          [
-            0,
-            4,
-            2
           ]
         ]
       },
@@ -566,71 +1148,8 @@
         "name": "重复ID",
         "args": [
           [
-            1,
-            1
-          ],
-          [
-            [
-              1
-            ],
-            [
-              3
-            ]
-          ]
-        ],
-        "expected": [
-          [
-            3,
-            9
-          ],
-          [
-            3,
-            9
-          ]
-        ]
-      },
-      {
-        "name": "空序列",
-        "args": [
-          [],
-          [
-            [
-              1,
-              2
-            ]
-          ]
-        ],
-        "expected": []
-      },
-      {
-        "name": "负数",
-        "args": [
-          [
+            0,
             0
-          ],
-          [
-            [
-              1,
-              -1
-            ],
-            [
-              -2,
-              1
-            ]
-          ]
-        ],
-        "expected": [
-          [
-            2,
-            -3
-          ]
-        ]
-      },
-      {
-        "name": "词表末项",
-        "args": [
-          [
-            2
           ],
           [
             [
@@ -639,26 +1158,44 @@
             ],
             [
               0,
-              2
+              1
             ],
             [
               1,
               1
             ]
+          ],
+          [
+            [
+              1,
+              0,
+              -1
+            ],
+            [
+              0,
+              1,
+              1
+            ]
           ]
         ],
+        "path": "logits",
         "expected": [
           [
             1,
-            2,
-            2
+            0,
+            -1
+          ],
+          [
+            1,
+            0,
+            -1
           ]
         ]
       }
     ],
     "scenarios": [
       {
-        "label": "查表与共享投影",
+        "label": "两token前向",
         "args": [
           [
             0,
@@ -671,9 +1208,566 @@
             ],
             [
               0,
-              2
+              1
             ],
             [
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              -1
+            ],
+            [
+              0,
+              1,
+              1
+            ]
+          ]
+        ]
+      },
+      {
+        "label": "不同上下文",
+        "args": [
+          [
+            2,
+            0,
+            1
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              -1
+            ],
+            [
+              0,
+              1,
+              1
+            ]
+          ]
+        ]
+      }
+    ],
+    "views": [
+      [
+        "matrix",
+        "上下文隐藏状态",
+        "hidden"
+      ],
+      [
+        "matrix",
+        "词表logits",
+        "logits"
+      ],
+      [
+        "heatmap",
+        "下一token概率",
+        "probabilities"
+      ]
+    ],
+    "hints": [
+      "查表得到[T,D]隐藏状态。",
+      "教学上下文层使用前缀平均，仅访问当前及过去位置。",
+      "投影得到[T,V]，最后一行用于预测下一token。"
+    ],
+    "note": "这里用可手算的因果前缀平均层；第07课再实现真正Attention。"
+  },
+  {
+    "id": "05-generation",
+    "lesson": "05-token-ids-to-logits.html",
+    "course": 5,
+    "title": "实现自回归生成循环",
+    "function": "generate_tokens",
+    "targets": [
+      "generate_tokens"
+    ],
+    "task": "逐步调用前向，选择最后位置最大logit并追加token",
+    "stages": [
+      "每步重新运行当前完整上下文。",
+      "只取最后位置的logits，追加选中的ID。",
+      "记录每步概率，处理零生成步数。"
+    ],
+    "cases": [
+      {
+        "name": "生成两步",
+        "args": [
+          [
+            0
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              -1
+            ],
+            [
+              0,
+              1,
+              1
+            ]
+          ],
+          2
+        ],
+        "path": "ids",
+        "expected": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "零步",
+        "args": [
+          [
+            1
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              -1
+            ],
+            [
+              0,
+              1,
+              1
+            ]
+          ],
+          0
+        ],
+        "path": "ids",
+        "expected": [
+          1
+        ]
+      },
+      {
+        "name": "不同起点",
+        "args": [
+          [
+            1
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              -1
+            ],
+            [
+              0,
+              1,
+              1
+            ]
+          ],
+          2
+        ],
+        "path": "generated",
+        "expected": [
+          1,
+          1
+        ]
+      }
+    ],
+    "scenarios": [
+      {
+        "label": "从token0开始",
+        "args": [
+          [
+            0
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              -1
+            ],
+            [
+              0,
+              1,
+              1
+            ]
+          ],
+          4
+        ]
+      },
+      {
+        "label": "从token1开始",
+        "args": [
+          [
+            1
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              -1
+            ],
+            [
+              0,
+              1,
+              1
+            ]
+          ],
+          4
+        ]
+      }
+    ],
+    "views": [
+      [
+        "tokens",
+        "完整序列",
+        "ids"
+      ],
+      [
+        "heatmap",
+        "每步预测概率",
+        "probabilities"
+      ]
+    ],
+    "hints": [
+      "每步重新运行当前完整上下文。",
+      "只取最后位置的logits，追加选中的ID。",
+      "记录每步概率，处理零生成步数。"
+    ],
+    "note": "小矩阵未训练，只验证生成流程，不宣称有语言能力。"
+  },
+  {
+    "id": "06-embedding-head",
+    "lesson": "06-embedding-lm-head.html",
+    "course": 6,
+    "title": "实现批量 Embedding 与 LM Head",
+    "function": "embedding_head",
+    "targets": [
+      "embedding_head"
+    ],
+    "task": "完成序列查表、输出投影和概率归一化",
+    "stages": [
+      "Embedding为[V,D]，LM Head为[D,V]。",
+      "用矩阵乘法完成投影，不把ID当数值特征。"
+    ],
+    "cases": [
+      {
+        "name": "多批次查表",
+        "args": [
+          [
+            [
+              0,
+              1
+            ],
+            [
+              2,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              -1
+            ],
+            [
+              0,
+              1,
+              1
+            ]
+          ]
+        ],
+        "path": "hidden",
+        "expected": [
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              1
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        ]
+      },
+      {
+        "name": "查表",
+        "args": [
+          [
+            2,
+            0
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              -1
+            ],
+            [
+              0,
+              1,
+              1
+            ]
+          ]
+        ],
+        "path": "hidden",
+        "expected": [
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            0
+          ]
+        ]
+      },
+      {
+        "name": "投影",
+        "args": [
+          [
+            1
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              -1
+            ],
+            [
+              0,
+              1,
+              1
+            ]
+          ]
+        ],
+        "path": "logits",
+        "expected": [
+          [
+            0,
+            1,
+            1
+          ]
+        ]
+      },
+      {
+        "name": "重复ID",
+        "args": [
+          [
+            0,
+            0
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              -1
+            ],
+            [
+              0,
+              1,
+              1
+            ]
+          ]
+        ],
+        "path": "hidden",
+        "expected": [
+          [
+            1,
+            0
+          ],
+          [
+            1,
+            0
+          ]
+        ]
+      }
+    ],
+    "scenarios": [
+      {
+        "label": "两批次序列",
+        "args": [
+          [
+            [
+              2,
+              0
+            ],
+            [
+              1,
+              2
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              -1
+            ],
+            [
+              0,
               1,
               1
             ]
@@ -689,162 +1783,13 @@
           ],
           [
             [
+              1,
+              0
+            ],
+            [
+              0,
               1
             ],
-            [
-              3
-            ]
-          ]
-        ]
-      }
-    ],
-    "hints": [
-      "隐藏向量就是 embedding[ids[t]]。",
-      "输出与同一 embedding 每一行做点积，不能拿 ID 本身参与点积。"
-    ],
-    "note": "本题演示共享数值计算；框架中的参数对象共享和梯度累积仍需在 PyTorch 中验证。"
-  },
-  {
-    "id": "07-causal-gqa",
-    "lesson": "07-self-attention-gqa.html",
-    "title": "实现因果 GQA 的一次查询",
-    "task": "q 形状 [Hq,D]，k/v 为 [Hkv,T,D]。按连续组共享KV，仅使用 0..position 的位置，返回 [Hq,D]。",
-    "function": "causal_gqa",
-    "cases": [
-      {
-        "name": "未来不可见",
-        "args": [
-          [
-            [
-              1
-            ]
-          ],
-          [
-            [
-              [
-                0
-              ],
-              [
-                100
-              ]
-            ]
-          ],
-          [
-            [
-              [
-                2
-              ],
-              [
-                999
-              ]
-            ]
-          ],
-          0
-        ],
-        "expected": [
-          [
-            2
-          ]
-        ]
-      },
-      {
-        "name": "均匀平均",
-        "args": [
-          [
-            [
-              0
-            ]
-          ],
-          [
-            [
-              [
-                1
-              ],
-              [
-                2
-              ]
-            ]
-          ],
-          [
-            [
-              [
-                2
-              ],
-              [
-                6
-              ]
-            ]
-          ],
-          1
-        ],
-        "expected": [
-          [
-            4
-          ]
-        ]
-      },
-      {
-        "name": "连续组共享",
-        "args": [
-          [
-            [
-              0
-            ],
-            [
-              0
-            ],
-            [
-              0
-            ],
-            [
-              0
-            ]
-          ],
-          [
-            [
-              [
-                1
-              ]
-            ],
-            [
-              [
-                2
-              ]
-            ]
-          ],
-          [
-            [
-              [
-                3
-              ]
-            ],
-            [
-              [
-                9
-              ]
-            ]
-          ],
-          0
-        ],
-        "expected": [
-          [
-            3
-          ],
-          [
-            3
-          ],
-          [
-            9
-          ],
-          [
-            9
-          ]
-        ]
-      },
-      {
-        "name": "缩放与加权",
-        "args": [
-          [
             [
               1,
               1
@@ -852,289 +1797,1885 @@
           ],
           [
             [
-              [
-                0,
-                0
-              ],
-              [
-                1,
-                1
-              ]
-            ]
-          ],
-          [
-            [
-              [
-                0,
-                0
-              ],
-              [
-                1,
-                2
-              ]
-            ]
-          ],
-          1
-        ],
-        "expected": [
-          [
-            0.8044296825069569,
-            1.6088593650139138
-          ]
-        ]
-      },
-      {
-        "name": "稳定softmax",
-        "args": [
-          [
-            [
-              1000
-            ]
-          ],
-          [
-            [
-              [
-                1000
-              ],
-              [
-                1000
-              ]
-            ]
-          ],
-          [
-            [
-              [
-                2
-              ],
-              [
-                4
-              ]
-            ]
-          ],
-          1
-        ],
-        "expected": [
-          [
-            3
-          ]
-        ]
-      }
-    ],
-    "scenarios": [
-      {
-        "label": "4个Q头共享2组KV",
-        "args": [
-          [
-            [
-              0
+              1,
+              0,
+              -1
             ],
             [
-              0
-            ],
-            [
-              0
-            ],
-            [
-              0
-            ]
-          ],
-          [
-            [
-              [
-                1
-              ],
-              [
-                2
-              ]
-            ],
-            [
-              [
-                3
-              ],
-              [
-                4
-              ]
-            ]
-          ],
-          [
-            [
-              [
-                2
-              ],
-              [
-                6
-              ]
-            ],
-            [
-              [
-                10
-              ],
-              [
-                14
-              ]
-            ]
-          ],
-          1
-        ]
-      },
-      {
-        "label": "未来值999应不可见",
-        "args": [
-          [
-            [
+              0,
+              1,
               1
             ]
-          ],
-          [
-            [
-              [
-                0
-              ],
-              [
-                100
-              ]
-            ]
-          ],
-          [
-            [
-              [
-                2
-              ],
-              [
-                999
-              ]
-            ]
-          ],
-          0
+          ]
         ]
       }
     ],
-    "hints": [
-      "Q头到KV头映射为 head // (Hq // Hkv)。",
-      "只计算可见前缀；softmax 先减最大值，再归一化。"
+    "views": [
+      [
+        "matrix",
+        "Embedding查表",
+        "hidden"
+      ],
+      [
+        "matrix",
+        "Logits",
+        "logits"
+      ],
+      [
+        "heatmap",
+        "概率",
+        "probabilities"
+      ]
     ],
-    "note": "有效输入满足 Hq 能被 Hkv 整除、维度一致且 position 在序列内。"
+    "hints": [
+      "Embedding为[V,D]，LM Head为[D,V]。",
+      "用矩阵乘法完成投影，不把ID当数值特征。"
+    ],
+    "note": ""
   },
   {
-    "id": "08-sink-cache",
-    "lesson": "08-attention-sink.html",
-    "title": "选择 sink 与最近窗口",
-    "task": "保留前 sink_count 个位置与最后 window 个位置，去重排序；总长度为 length。",
-    "function": "keep_positions",
+    "id": "06-tied-head",
+    "lesson": "06-embedding-lm-head.html",
+    "course": 6,
+    "title": "实现共享词表投影",
+    "function": "tied_head",
+    "targets": [
+      "tied_head"
+    ],
+    "task": "同一Embedding用于输入查表与转置词表投影",
+    "stages": [
+      "输出投影权重直接来自同一张词表。",
+      "检查[V,D]与[D,V]的转置关系。"
+    ],
     "cases": [
       {
-        "name": "长序列",
+        "name": "共享投影",
         "args": [
-          10,
-          2,
-          3
+          [
+            0,
+            1
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ]
         ],
+        "path": "logits",
         "expected": [
-          0,
-          1,
-          7,
-          8,
-          9
+          [
+            1,
+            0,
+            1
+          ],
+          [
+            0,
+            1,
+            1
+          ]
         ]
       },
       {
-        "name": "前后重叠",
+        "name": "末项",
         "args": [
-          4,
-          3,
-          3
+          [
+            2
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ]
         ],
+        "path": "logits",
         "expected": [
-          0,
-          1,
-          2,
-          3
+          [
+            1,
+            1,
+            2
+          ]
         ]
       },
       {
         "name": "空序列",
         "args": [
-          0,
-          2,
-          3
+          [],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ]
         ],
+        "path": "logits",
         "expected": []
-      },
+      }
+    ],
+    "scenarios": [
       {
-        "name": "零窗口",
+        "label": "共享词表两批次",
         "args": [
-          5,
-          2,
-          0
-        ],
-        "expected": [
-          0,
-          1
+          [
+            [
+              0,
+              1
+            ],
+            [
+              2,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ]
         ]
       },
       {
-        "name": "只有尾部",
+        "label": "重复token",
         "args": [
-          5,
-          0,
-          2
+          [
+            2,
+            2
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ]
+        ]
+      }
+    ],
+    "views": [
+      [
+        "matrix",
+        "查表结果",
+        "hidden"
+      ],
+      [
+        "matrix",
+        "共享投影logits",
+        "logits"
+      ]
+    ],
+    "hints": [
+      "输出投影权重直接来自同一张词表。",
+      "检查[V,D]与[D,V]的转置关系。"
+    ],
+    "note": "数值共享在网页验证；参数身份、反向传播和梯度累积见本课PyTorch Notebook。"
+  },
+  {
+    "id": "07-self-attention",
+    "lesson": "07-self-attention-gqa.html",
+    "course": 7,
+    "title": "从零实现 Self-Attention",
+    "function": "self_attention",
+    "targets": [
+      "project_qkv",
+      "attention_scores",
+      "attention_weights",
+      "attention_output"
+    ],
+    "task": "第一步：完成Q/K/V投影；第二步：缩放点积与可选因果遮罩；第三步：对分数逐行做稳定softmax；第四步：用权重对V加权求和",
+    "stages": [
+      "依次计算Q、K、V以及[T,T]分数矩阵。",
+      "每行减最大值，再计算softmax。",
+      "注意力权重乘V得到输出。"
+    ],
+    "cases": [
+      {
+        "name": "阶段1：Q投影",
+        "args": [
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ]
         ],
+        "path": "q",
         "expected": [
-          3,
-          4
+          [
+            1,
+            0
+          ],
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            1
+          ]
+        ],
+        "function": "project_qkv"
+      },
+      {
+        "name": "阶段2：因果分数",
+        "args": [
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          true
+        ],
+        "path": "0",
+        "expected": [
+          0.7071067811865475,
+          null
+        ],
+        "function": "attention_scores"
+      },
+      {
+        "name": "阶段3：稳定归一化",
+        "args": [
+          [
+            [
+              1000,
+              1000
+            ]
+          ]
+        ],
+        "path": "",
+        "expected": [
+          [
+            0.5,
+            0.5
+          ]
+        ],
+        "function": "attention_weights"
+      },
+      {
+        "name": "阶段4：加权求和",
+        "args": [
+          [
+            [
+              0.25,
+              0.75
+            ]
+          ],
+          [
+            [
+              2,
+              0
+            ],
+            [
+              0,
+              4
+            ]
+          ]
+        ],
+        "path": "",
+        "expected": [
+          [
+            0.5,
+            3
+          ]
+        ],
+        "function": "attention_output"
+      },
+      {
+        "name": "单token",
+        "args": [
+          [
+            [
+              2,
+              3
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ]
+        ],
+        "path": "output",
+        "expected": [
+          [
+            2,
+            3
+          ]
         ]
       },
       {
-        "name": "预算超过长度",
+        "name": "零query均匀",
         "args": [
-          2,
-          5,
-          8
+          [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ]
         ],
+        "path": "weights",
         "expected": [
-          0,
-          1
+          [
+            0.5,
+            0.5
+          ],
+          [
+            0.5,
+            0.5
+          ]
+        ]
+      },
+      {
+        "name": "缩放数值",
+        "args": [
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ]
+        ],
+        "path": "weights",
+        "expected": [
+          [
+            0.6697615493266569,
+            0.3302384506733431
+          ],
+          [
+            0.3302384506733431,
+            0.6697615493266569
+          ]
+        ]
+      },
+      {
+        "name": "大分数稳定",
+        "args": [
+          [
+            [
+              1000,
+              0
+            ],
+            [
+              1000,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ]
+        ],
+        "path": "weights",
+        "expected": [
+          [
+            0.5,
+            0.5
+          ],
+          [
+            0.5,
+            0.5
+          ]
         ]
       }
     ],
     "scenarios": [
       {
-        "label": "10个位置，保留2+3",
+        "label": "三个位置完整Attention",
         "args": [
-          10,
-          2,
-          3
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ]
         ]
       },
       {
-        "label": "重叠时去重",
+        "label": "稳定softmax",
         "args": [
-          4,
-          3,
-          3
+          [
+            [
+              1000,
+              0
+            ],
+            [
+              1000,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ]
+          ]
         ]
       }
     ],
-    "hints": [
-      "前缀上界不能超过 length。",
-      "尾部起点 max(0, length-window)，集合并集后排序。"
+    "views": [
+      [
+        "matrix",
+        "Q投影",
+        "q"
+      ],
+      [
+        "matrix",
+        "缩放分数",
+        "scores"
+      ],
+      [
+        "heatmap",
+        "Attention权重",
+        "weights"
+      ],
+      [
+        "matrix",
+        "输出",
+        "output"
+      ]
     ],
-    "note": "只验证缓存索引策略；保留sink不代表保存全部历史语义。参数均为非负整数。"
+    "hints": [
+      "依次计算Q、K、V以及[T,T]分数矩阵。",
+      "每行减最大值，再计算softmax。",
+      "注意力权重乘V得到输出。"
+    ],
+    "note": ""
   },
   {
-    "id": "09-sinusoidal",
-    "lesson": "09-position-encoding.html",
-    "title": "计算正弦位置编码",
-    "task": "返回长度 dim 的交错 sin/cos 向量；第 i 对使用频率 base ** (-2*i/dim)。dim 为正偶数。",
-    "function": "position_vector",
+    "id": "07-mha",
+    "lesson": "07-self-attention-gqa.html",
+    "course": 7,
+    "title": "实现因果 Multi-Head Attention",
+    "function": "grouped_attention",
+    "targets": [
+      "grouped_attention"
+    ],
+    "task": "Q/K/V投影、分头、连续KV共享、因果遮罩、合头和输出投影",
+    "stages": [
+      "按head_dim切分每个位置的Q/K/V。",
+      "Q头按连续组映射到KV头；MHA时每个Q头各用一组KV。",
+      "对每个头施加因果遮罩，再拼接并做Wo投影。"
+    ],
     "cases": [
       {
-        "name": "零位置",
+        "name": "首位置不看未来",
         "args": [
-          0,
-          4
+          [
+            [
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          2,
+          2
         ],
+        "path": "output.0",
         "expected": [
+          1,
+          0,
+          0,
+          1
+        ]
+      },
+      {
+        "name": "KV映射",
+        "args": [
+          [
+            [
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          2,
+          2
+        ],
+        "path": "head_map",
+        "expected": [
+          0,
+          1
+        ]
+      },
+      {
+        "name": "第一头首行",
+        "args": [
+          [
+            [
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          2,
+          2
+        ],
+        "path": "weights.0.0",
+        "expected": [
+          1,
+          0,
+          0
+        ]
+      },
+      {
+        "name": "第二头首行",
+        "args": [
+          [
+            [
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          2,
+          2
+        ],
+        "path": "weights.1.0",
+        "expected": [
+          1,
+          0,
+          0
+        ]
+      }
+    ],
+    "scenarios": [
+      {
+        "label": "多位置因果计算",
+        "args": [
+          [
+            [
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          2,
+          2
+        ]
+      },
+      {
+        "label": "改变未来输入",
+        "args": [
+          [
+            [
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              99,
+              99,
+              99,
+              99
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          2,
+          2
+        ]
+      }
+    ],
+    "views": [
+      [
+        "heatmap",
+        "各头注意力",
+        "weights"
+      ],
+      [
+        "matrix",
+        "投影输出",
+        "output"
+      ],
+      [
+        "tokens",
+        "Q头到KV头映射",
+        "head_map"
+      ]
+    ],
+    "hints": [
+      "按head_dim切分每个位置的Q/K/V。",
+      "Q头按连续组映射到KV头；MHA时每个Q头各用一组KV。",
+      "对每个头施加因果遮罩，再拼接并做Wo投影。"
+    ],
+    "note": "Hq能被Hkv整除；可将参数改为MHA(Hkv=Hq)、MQA(Hkv=1)或中间的GQA。"
+  },
+  {
+    "id": "07-gqa",
+    "lesson": "07-self-attention-gqa.html",
+    "course": 7,
+    "title": "实现 MQA 与 GQA",
+    "function": "grouped_attention",
+    "targets": [
+      "grouped_attention"
+    ],
+    "task": "Q/K/V投影、分头、连续KV共享、因果遮罩、合头和输出投影",
+    "stages": [
+      "按head_dim切分每个位置的Q/K/V。",
+      "Q头按连续组映射到KV头；MHA时每个Q头各用一组KV。",
+      "对每个头施加因果遮罩，再拼接并做Wo投影。"
+    ],
+    "cases": [
+      {
+        "name": "首位置不看未来",
+        "args": [
+          [
+            [
+              1,
+              0,
+              0,
+              1,
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              1,
+              0,
+              0,
+              1,
+              1,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          4,
+          2
+        ],
+        "path": "output.0",
+        "expected": [
+          1,
+          0,
+          1,
+          0,
           0,
           1,
           0,
@@ -1142,222 +3683,3192 @@
         ]
       },
       {
-        "name": "位置一",
+        "name": "KV映射",
         "args": [
-          1,
-          4
+          [
+            [
+              1,
+              0,
+              0,
+              1,
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              1,
+              0,
+              0,
+              1,
+              1,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          4,
+          2
         ],
+        "path": "head_map",
+        "expected": [
+          0,
+          0,
+          1,
+          1
+        ]
+      },
+      {
+        "name": "第一头首行",
+        "args": [
+          [
+            [
+              1,
+              0,
+              0,
+              1,
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              1,
+              0,
+              0,
+              1,
+              1,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          4,
+          2
+        ],
+        "path": "weights.0.0",
+        "expected": [
+          1,
+          0
+        ]
+      },
+      {
+        "name": "第二头首行",
+        "args": [
+          [
+            [
+              1,
+              0,
+              0,
+              1,
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              1,
+              0,
+              0,
+              1,
+              1,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          4,
+          2
+        ],
+        "path": "weights.1.0",
+        "expected": [
+          1,
+          0
+        ]
+      }
+    ],
+    "scenarios": [
+      {
+        "label": "多位置因果计算",
+        "args": [
+          [
+            [
+              1,
+              0,
+              0,
+              1,
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              1,
+              0,
+              0,
+              1,
+              1,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          4,
+          2
+        ]
+      },
+      {
+        "label": "改变未来输入",
+        "args": [
+          [
+            [
+              1,
+              0,
+              0,
+              1,
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              99,
+              99,
+              99,
+              99,
+              99,
+              99,
+              99,
+              99
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          4,
+          2
+        ]
+      }
+    ],
+    "views": [
+      [
+        "heatmap",
+        "各头注意力",
+        "weights"
+      ],
+      [
+        "matrix",
+        "投影输出",
+        "output"
+      ],
+      [
+        "tokens",
+        "Q头到KV头映射",
+        "head_map"
+      ]
+    ],
+    "hints": [
+      "按head_dim切分每个位置的Q/K/V。",
+      "Q头按连续组映射到KV头；MHA时每个Q头各用一组KV。",
+      "对每个头施加因果遮罩，再拼接并做Wo投影。"
+    ],
+    "note": "Hq能被Hkv整除；可将参数改为MHA(Hkv=Hq)、MQA(Hkv=1)或中间的GQA。"
+  },
+  {
+    "id": "07-kv-cache",
+    "lesson": "07-self-attention-gqa.html",
+    "course": 7,
+    "title": "实现 KV Cache 增量解码",
+    "function": "cached_attention",
+    "targets": [
+      "cached_attention"
+    ],
+    "task": "投影并追加KV，按Q头分组查询缓存，核对完整因果前向",
+    "stages": [
+      "首token建立缓存，随后每个新token只投影一次。",
+      "历史KV保留，每个Q头映射到正确KV头。",
+      "逐步输出与完整因果Attention逐位置对齐。"
+    ],
+    "cases": [
+      {
+        "name": "整块prefill再decode",
+        "args": [
+          [
+            [
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          2,
+          1,
+          2
+        ],
+        "path": "error",
+        "expected": 0
+      },
+      {
+        "name": "增量对齐",
+        "args": [
+          [
+            [
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          2,
+          1
+        ],
+        "path": "error",
+        "expected": 0
+      },
+      {
+        "name": "缓存增长",
+        "args": [
+          [
+            [
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          2,
+          1
+        ],
+        "path": "cache_lengths",
+        "expected": [
+          1,
+          2,
+          3
+        ]
+      },
+      {
+        "name": "首token",
+        "args": [
+          [
+            [
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          2,
+          1
+        ],
+        "path": "incremental.0",
+        "expected": [
+          1,
+          0,
+          1,
+          0
+        ]
+      }
+    ],
+    "scenarios": [
+      {
+        "label": "两token prefill后增量解码",
+        "args": [
+          [
+            [
+              1,
+              0,
+              0,
+              1
+            ],
+            [
+              0,
+              1,
+              1,
+              0
+            ],
+            [
+              1,
+              1,
+              1,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          2,
+          1,
+          2
+        ]
+      },
+      {
+        "label": "短序列prefill/decode",
+        "args": [
+          [
+            [
+              1,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          [
+            [
+              1,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              1,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              1,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              1
+            ]
+          ],
+          2,
+          1
+        ]
+      }
+    ],
+    "views": [
+      [
+        "cache",
+        "缓存长度",
+        "cache_lengths"
+      ],
+      [
+        "matrix",
+        "完整输出",
+        "full"
+      ],
+      [
+        "matrix",
+        "增量输出",
+        "incremental"
+      ],
+      [
+        "metric",
+        "最大绝对误差",
+        "error"
+      ]
+    ],
+    "hints": [
+      "首token建立缓存，随后每个新token只投影一次。",
+      "历史KV保留，每个Q头映射到正确KV头。",
+      "逐步输出与完整因果Attention逐位置对齐。"
+    ],
+    "note": ""
+  },
+  {
+    "id": "08-window-cache",
+    "lesson": "08-attention-sink.html",
+    "course": 8,
+    "title": "实现滑动窗口 KV Cache",
+    "function": "window_attention",
+    "targets": [
+      "window_attention"
+    ],
+    "task": "实际维护并裁剪K/V及位置编号，计算裁剪后的注意力",
+    "stages": [
+      "追加KV后，按绝对位置保留前缀与最近窗口。",
+      "K、V、位置索引必须同步裁剪。",
+      "对照完整缓存输出，观察近似策略造成的变化。"
+    ],
+    "cases": [
+      {
+        "name": "缓存位置",
+        "args": [
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          2
+        ],
+        "path": "cache_positions",
+        "expected": [
+          [
+            0
+          ],
+          [
+            0,
+            1
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      {
+        "name": "单token",
+        "args": [
+          [
+            [
+              1,
+              0
+            ]
+          ],
+          2
+        ],
+        "path": "output",
+        "expected": [
+          [
+            1,
+            0
+          ]
+        ]
+      }
+    ],
+    "scenarios": [
+      {
+        "label": "实际缓存淘汰",
+        "args": [
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          2
+        ]
+      },
+      {
+        "label": "首token显著不同",
+        "args": [
+          [
+            [
+              5,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          2
+        ]
+      }
+    ],
+    "views": [
+      [
+        "cache",
+        "各步保留位置",
+        "cache_positions"
+      ],
+      [
+        "matrix",
+        "窗口输出",
+        "output"
+      ],
+      [
+        "matrix",
+        "完整缓存输出",
+        "full"
+      ]
+    ],
+    "hints": [
+      "追加KV后，按绝对位置保留前缀与最近窗口。",
+      "K、V、位置索引必须同步裁剪。",
+      "对照完整缓存输出，观察近似策略造成的变化。"
+    ],
+    "note": "这是小张量缓存计算对比，不能据此断言任意预训练模型都存在sink或质量提升。"
+  },
+  {
+    "id": "08-sink-cache-full",
+    "lesson": "08-attention-sink.html",
+    "course": 8,
+    "title": "实现 Sink 与窗口缓存对比",
+    "function": "compare_caches",
+    "targets": [
+      "window_attention"
+    ],
+    "task": "实际维护并裁剪K/V及位置编号，计算裁剪后的注意力",
+    "stages": [
+      "追加KV后，按绝对位置保留前缀与最近窗口。",
+      "K、V、位置索引必须同步裁剪。",
+      "对照完整缓存输出，观察近似策略造成的变化。"
+    ],
+    "cases": [
+      {
+        "name": "缓存位置",
+        "args": [
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          1,
+          1
+        ],
+        "path": "cache_positions",
+        "expected": [
+          [
+            0
+          ],
+          [
+            0,
+            1
+          ],
+          [
+            0,
+            2
+          ]
+        ]
+      },
+      {
+        "name": "单token",
+        "args": [
+          [
+            [
+              1,
+              0
+            ]
+          ],
+          1,
+          1
+        ],
+        "path": "sink",
+        "expected": [
+          [
+            1,
+            0
+          ]
+        ]
+      }
+    ],
+    "scenarios": [
+      {
+        "label": "实际缓存淘汰",
+        "args": [
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          1,
+          1
+        ]
+      },
+      {
+        "label": "首token显著不同",
+        "args": [
+          [
+            [
+              5,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              0,
+              1
+            ]
+          ],
+          1,
+          1
+        ]
+      }
+    ],
+    "views": [
+      [
+        "cache",
+        "各步保留位置",
+        "cache_positions"
+      ],
+      [
+        "matrix",
+        "完整缓存输出",
+        "full"
+      ],
+      [
+        "matrix",
+        "窗口输出",
+        "window"
+      ],
+      [
+        "matrix",
+        "Sink输出",
+        "sink"
+      ]
+    ],
+    "hints": [
+      "追加KV后，按绝对位置保留前缀与最近窗口。",
+      "K、V、位置索引必须同步裁剪。",
+      "对照完整缓存输出，观察近似策略造成的变化。"
+    ],
+    "note": "这是小张量缓存计算对比，不能据此断言任意预训练模型都存在sink或质量提升。"
+  },
+  {
+    "id": "09-sinusoidal-attention",
+    "lesson": "09-position-encoding.html",
+    "course": 9,
+    "title": "实现正弦位置编码并接入 Attention",
+    "function": "sinusoidal_attention",
+    "targets": [
+      "sinusoidal_attention"
+    ],
+    "task": "生成多频率sin/cos、加到输入，再计算因果Attention",
+    "stages": [
+      "每一对维度使用不同频率。",
+      "把位置向量加到输入后再生成Q/K/V。"
+    ],
+    "cases": [
+      {
+        "name": "零位置编码",
+        "args": [
+          [
+            [
+              0,
+              0
+            ]
+          ]
+        ],
+        "path": "encoding",
+        "expected": [
+          [
+            0,
+            1
+          ]
+        ]
+      },
+      {
+        "name": "第二位置",
+        "args": [
+          [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ]
+        ],
+        "path": "encoding.1",
+        "expected": [
+          0.8414709848078965,
+          0.5403023058681398
+        ]
+      },
+      {
+        "name": "四维频率",
+        "args": [
+          [
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ]
+        ],
+        "path": "encoding.1",
         "expected": [
           0.8414709848078965,
           0.5403023058681398,
           0.009999833334166664,
           0.9999500004166653
         ]
-      },
+      }
+    ],
+    "scenarios": [
       {
-        "name": "二维",
+        "label": "相同token，不同位置",
         "args": [
-          2,
-          2
-        ],
-        "expected": [
-          0.9092974268256817,
-          -0.4161468365471424
+          [
+            [
+              1,
+              0
+            ],
+            [
+              1,
+              0
+            ],
+            [
+              1,
+              0
+            ]
+          ]
         ]
       },
       {
-        "name": "负位置",
+        "label": "四维编码",
         "args": [
-          -1,
-          2
+          [
+            [
+              0,
+              0,
+              0,
+              0
+            ],
+            [
+              0,
+              0,
+              0,
+              0
+            ]
+          ]
+        ]
+      }
+    ],
+    "views": [
+      [
+        "matrix",
+        "位置编码",
+        "encoding"
+      ],
+      [
+        "heatmap",
+        "注意力权重",
+        "weights"
+      ],
+      [
+        "matrix",
+        "输出",
+        "output"
+      ]
+    ],
+    "hints": [
+      "每一对维度使用不同频率。",
+      "把位置向量加到输入后再生成Q/K/V。"
+    ],
+    "note": ""
+  },
+  {
+    "id": "09-relative-attention",
+    "lesson": "09-position-encoding.html",
+    "course": 9,
+    "title": "实现相对位置偏置 Attention",
+    "function": "relative_attention",
+    "targets": [
+      "relative_attention"
+    ],
+    "task": "把距离偏置加入因果注意力分数，再归一化并计算输出",
+    "stages": [
+      "分数中加入 -slope*abs(i-j)。",
+      "未来位置仍需独立遮罩，偏置不代替因果mask。"
+    ],
+    "cases": [
+      {
+        "name": "零偏置均匀",
+        "args": [
+          [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          0
         ],
+        "path": "weights",
         "expected": [
-          -0.8414709848078965,
-          0.5403023058681398
+          [
+            1,
+            0
+          ],
+          [
+            0.5,
+            0.5
+          ]
         ]
       },
       {
-        "name": "自定义base",
+        "name": "距离影响",
         "args": [
-          2,
-          4,
-          100
+          [
+            [
+              0,
+              0
+            ],
+            [
+              0,
+              0
+            ]
+          ],
+          1
         ],
+        "path": "weights.1",
         "expected": [
-          0.9092974268256817,
-          -0.4161468365471424,
-          0.19866933079506122,
-          0.9800665778412416
+          0.2689414213699951,
+          0.7310585786300049
+        ]
+      },
+      {
+        "name": "首位置",
+        "args": [
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          0.3
+        ],
+        "path": "weights.0",
+        "expected": [
+          1,
+          0,
+          0
         ]
       }
     ],
     "scenarios": [
       {
-        "label": "位置1的四维编码",
+        "label": "位置距离衰减",
         "args": [
-          1,
-          4
+          [
+            [
+              1,
+              0
+            ],
+            [
+              1,
+              0
+            ],
+            [
+              1,
+              0
+            ]
+          ],
+          1
         ]
       },
       {
-        "label": "零位置",
+        "label": "无距离偏置",
         "args": [
-          0,
-          4
+          [
+            [
+              1,
+              0
+            ],
+            [
+              1,
+              0
+            ],
+            [
+              1,
+              0
+            ]
+          ],
+          0
         ]
       }
     ],
-    "hints": [
-      "偶数索引用sin，奇数索引用cos。",
-      "循环次数 dim // 2，每一轮追加一对数。"
+    "views": [
+      [
+        "matrix",
+        "加入偏置的分数",
+        "scores"
+      ],
+      [
+        "heatmap",
+        "注意力权重",
+        "weights"
+      ],
+      [
+        "matrix",
+        "输出",
+        "output"
+      ]
     ],
-    "note": "基础公式示例，使用交错布局。有效输入 dim 为正偶数且 base > 0。"
+    "hints": [
+      "分数中加入 -slope*abs(i-j)。",
+      "未来位置仍需独立遮罩，偏置不代替因果mask。"
+    ],
+    "note": "使用教学线性距离偏置，不宣称复刻某个模型的完整位置方案。"
   },
   {
-    "id": "10-rope-plane",
+    "id": "10-rope-attention",
     "lesson": "10-rope-theory.html",
-    "title": "手写二维 RoPE 旋转",
-    "task": "将二维向量按 angle=position*frequency 逆时针旋转，返回 [x,y]。",
-    "function": "rotate_plane",
+    "course": 10,
+    "title": "实现多维 RoPE 并接入 Q/K",
+    "function": "rope_attention",
+    "targets": [
+      "rotate",
+      "rope_attention"
+    ],
+    "task": "对所有相邻维度对进行多频率旋转；按位置旋转Q/K，构造因果Attention并作用到未旋转V",
+    "stages": [
+      "第i对使用base**(-2*i/D)频率。",
+      "旋转Q/K，不旋转V。",
+      "比较旋转前后向量与最终注意力矩阵。"
+    ],
     "cases": [
       {
         "name": "零位置",
         "args": [
           [
+            [
+              1,
+              2
+            ]
+          ]
+        ],
+        "path": "after",
+        "expected": [
+          [
             1,
             2
-          ],
-          0,
-          0.1
-        ],
-        "expected": [
-          1,
-          2
+          ]
         ]
       },
       {
-        "name": "四分之一圈",
+        "name": "四维频率",
         "args": [
+          [
+            [
+              1,
+              0,
+              1,
+              0
+            ],
+            [
+              1,
+              0,
+              1,
+              0
+            ]
+          ]
+        ],
+        "path": "after.1",
+        "expected": [
+          0.5403023058681398,
+          0.8414709848078965,
+          0.9999500004166653,
+          0.009999833334166664
+        ]
+      },
+      {
+        "name": "V不旋转",
+        "args": [
+          [
+            [
+              1,
+              2
+            ]
+          ],
+          3
+        ],
+        "path": "output",
+        "expected": [
           [
             1,
-            0
-          ],
-          1,
-          1.5707963267948966
-        ],
-        "expected": [
-          0,
-          1
-        ]
-      },
-      {
-        "name": "负角度",
-        "args": [
-          [
-            1,
-            0
-          ],
-          -1,
-          1.5707963267948966
-        ],
-        "expected": [
-          0,
-          -1
-        ]
-      },
-      {
-        "name": "非单位向量",
-        "args": [
-          [
-            2,
-            3
-          ],
-          1,
-          3.141592653589793
-        ],
-        "expected": [
-          -2,
-          -3
-        ]
-      },
-      {
-        "name": "零频率",
-        "args": [
-          [
-            3,
-            4
-          ],
-          20,
-          0
-        ],
-        "expected": [
-          3,
-          4
+            2
+          ]
         ]
       }
     ],
     "scenarios": [
       {
-        "label": "旋转90度",
+        "label": "相同向量不同位置",
         "args": [
           [
-            1,
-            0
-          ],
-          1,
-          1.5707963267948966
+            [
+              1,
+              0
+            ],
+            [
+              1,
+              0
+            ],
+            [
+              1,
+              0
+            ]
+          ]
         ]
       },
       {
-        "label": "一般二维向量",
+        "label": "四维多频率",
+        "args": [
+          [
+            [
+              1,
+              0,
+              1,
+              0
+            ],
+            [
+              1,
+              0,
+              1,
+              0
+            ]
+          ]
+        ]
+      }
+    ],
+    "views": [
+      [
+        "rotation",
+        "旋转前后",
+        "after"
+      ],
+      [
+        "heatmap",
+        "旋转后的注意力",
+        "weights"
+      ],
+      [
+        "matrix",
+        "输出",
+        "output"
+      ]
+    ],
+    "hints": [
+      "第i对使用base**(-2*i/D)频率。",
+      "旋转Q/K，不旋转V。",
+      "比较旋转前后向量与最终注意力矩阵。"
+    ],
+    "note": ""
+  },
+  {
+    "id": "10-rope-invariants",
+    "lesson": "10-rope-theory.html",
+    "course": 10,
+    "title": "验证 RoPE 的相对位置性质",
+    "function": "rope_invariants",
+    "targets": [
+      "rope_invariants"
+    ],
+    "task": "计算范数、共同平移内积及相对旋转等式误差",
+    "stages": [
+      "实现三种独立表达式，不要把误差直接返回0。",
+      "比较q_m·k_n与q·R(n-m)k。"
+    ],
+    "cases": [
+      {
+        "name": "范数保持",
         "args": [
           [
             1,
             2
           ],
-          3,
-          0.2
+          [
+            3,
+            4
+          ],
+          2,
+          5,
+          7
+        ],
+        "path": "norm_error",
+        "expected": 0
+      },
+      {
+        "name": "共同平移",
+        "args": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          2,
+          5,
+          7
+        ],
+        "path": "shift_error",
+        "expected": 0
+      },
+      {
+        "name": "相对内积",
+        "args": [
+          [
+            1,
+            2,
+            3,
+            4
+          ],
+          [
+            4,
+            3,
+            2,
+            1
+          ],
+          4,
+          9,
+          -3
+        ],
+        "path": "relative_error",
+        "expected": 0
+      }
+    ],
+    "scenarios": [
+      {
+        "label": "二维相对位置",
+        "args": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          2,
+          5,
+          7
+        ]
+      },
+      {
+        "label": "多维与负共同平移",
+        "args": [
+          [
+            1,
+            2,
+            3,
+            4
+          ],
+          [
+            4,
+            3,
+            2,
+            1
+          ],
+          4,
+          9,
+          -3
         ]
       }
     ],
-    "hints": [
-      "二维旋转矩阵是 [[cos,-sin],[sin,cos]]。",
-      "位置乘频率得到角度，注意第二项的正负号。"
+    "views": [
+      [
+        "rotation",
+        "各平面旋转",
+        "after"
+      ],
+      [
+        "metric",
+        "范数误差",
+        "norm_error"
+      ],
+      [
+        "metric",
+        "共同平移误差",
+        "shift_error"
+      ],
+      [
+        "metric",
+        "相对内积误差",
+        "relative_error"
+      ]
     ],
-    "note": "二维平面是RoPE的一个基本单元；旋转应保持向量范数。"
+    "hints": [
+      "实现三种独立表达式，不要把误差直接返回0。",
+      "比较q_m·k_n与q·R(n-m)k。"
+    ],
+    "note": ""
   },
   {
-    "id": "11-rope-offset",
+    "id": "11-batched-rope",
     "lesson": "11-rope-implementation.html",
-    "title": "实现多头 RoPE 与 offset",
-    "task": "输入 [T,H,D]，按相邻两维旋转；第 t 项位置为 offset+t，每对频率 base**(-2*i/D)。返回同形列表。",
-    "function": "apply_rope",
+    "course": 11,
+    "title": "实现批量多头 RoPE",
+    "function": "multihead_rope",
+    "targets": [
+      "multihead_rope"
+    ],
+    "task": "为[B,T,H,D]每个头应用对应位置的多频率旋转",
+    "stages": [
+      "按时间步计算位置，每个头独立旋转。",
+      "返回[B,T,H,D]，不得修改输入。"
+    ],
     "cases": [
       {
-        "name": "零位置与多头",
+        "name": "空输入",
+        "args": [
+          []
+        ],
+        "path": "",
+        "expected": []
+      },
+      {
+        "name": "位置零",
         "args": [
           [
             [
               [
-                1,
-                2
-              ],
-              [
-                3,
-                4
+                [
+                  1,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  1
+                ]
               ]
             ]
           ]
         ],
+        "path": "",
         "expected": [
           [
             [
-              1,
-              2
-            ],
-            [
-              3,
-              4
+              [
+                1,
+                0,
+                1,
+                0
+              ],
+              [
+                0,
+                1,
+                0,
+                1
+              ]
             ]
           ]
         ]
@@ -1368,269 +6879,788 @@
           [
             [
               [
-                1,
-                0
+                [
+                  1,
+                  0
+                ]
               ]
             ]
           ],
           1
         ],
+        "path": "",
         "expected": [
           [
             [
-              0.5403023058681398,
-              0.8414709848078965
-            ]
-          ]
-        ]
-      },
-      {
-        "name": "时间步递增",
-        "args": [
-          [
-            [
               [
-                1,
-                0
-              ]
-            ],
-            [
-              [
-                1,
-                0
+                0.5403023058681398,
+                0.8414709848078965
               ]
             ]
           ]
-        ],
-        "expected": [
-          [
-            [
-              1,
-              0
-            ]
-          ],
-          [
-            [
-              0.5403023058681398,
-              0.8414709848078965
-            ]
-          ]
         ]
-      },
-      {
-        "name": "不同频率",
-        "args": [
-          [
-            [
-              [
-                1,
-                0,
-                1,
-                0
-              ]
-            ]
-          ],
-          1
-        ],
-        "expected": [
-          [
-            [
-              0.5403023058681398,
-              0.8414709848078965,
-              0.9999500004166653,
-              0.009999833334166664
-            ]
-          ]
-        ]
-      },
-      {
-        "name": "空输入",
-        "args": [
-          []
-        ],
-        "expected": []
       }
     ],
     "scenarios": [
       {
-        "label": "两时间步两头",
+        "label": "三位置两头四维",
         "args": [
           [
             [
               [
-                1,
-                0
+                [
+                  1,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  1
+                ]
               ],
               [
-                0,
-                1
-              ]
-            ],
-            [
-              [
-                1,
-                0
+                [
+                  1,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  1
+                ]
               ],
               [
-                0,
-                1
+                [
+                  1,
+                  1,
+                  1,
+                  1
+                ],
+                [
+                  2,
+                  0,
+                  0,
+                  2
+                ]
               ]
             ]
-          ],
-          2
+          ]
         ]
       },
       {
-        "label": "四维不同频率",
+        "label": "非零起始位置",
         "args": [
           [
             [
               [
-                1,
-                0,
-                1,
-                0
+                [
+                  1,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  1
+                ]
+              ],
+              [
+                [
+                  1,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  1
+                ]
+              ],
+              [
+                [
+                  1,
+                  1,
+                  1,
+                  1
+                ],
+                [
+                  2,
+                  0,
+                  0,
+                  2
+                ]
               ]
             ]
           ],
-          1
+          5
         ]
       }
     ],
-    "hints": [
-      "t 是块内位置，真实位置是 offset+t。",
-      "每个头独立旋转；本题是相邻配对，不能与 split-half 布局混用。"
+    "views": [
+      [
+        "matrix",
+        "多头旋转结果",
+        ""
+      ]
     ],
-    "note": "有效输入各向量D相同且为正偶数；只验证旋转层，不模拟完整KV缓存。"
+    "hints": [
+      "按时间步计算位置，每个头独立旋转。",
+      "返回[B,T,H,D]，不得修改输入。"
+    ],
+    "note": "本题布局[B,T,H,D]；批次在函数内独立处理，不能混用split-half配对。"
   },
   {
-    "id": "12-position-scaling",
-    "lesson": "12-length-extrapolation.html",
-    "title": "实现长度插值坐标",
-    "task": "将 positions 中每个坐标除以 scale。返回浮点列表；scale<=0 时抛 ValueError。",
-    "function": "scale_positions",
+    "id": "11-rope-offset-full",
+    "lesson": "11-rope-implementation.html",
+    "course": 11,
+    "title": "实现增量 RoPE offset 对齐",
+    "function": "rope_offset_check",
+    "targets": [
+      "multihead_rope",
+      "rope_offset_check"
+    ],
+    "task": "按offset+t旋转每头；分块计算并与完整位置序列逐元素核对",
+    "stages": [
+      "第一块从offset开始，第二块从offset+split开始。",
+      "记录最大误差与实际绝对位置。"
+    ],
     "cases": [
       {
-        "name": "二倍扩展",
+        "name": "分块对齐",
         "args": [
           [
-            0,
-            1,
-            2,
-            6
+            [
+              [
+                [
+                  1,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  1
+                ]
+              ],
+              [
+                [
+                  1,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  1
+                ]
+              ],
+              [
+                [
+                  1,
+                  1,
+                  1,
+                  1
+                ],
+                [
+                  2,
+                  0,
+                  0,
+                  2
+                ]
+              ]
+            ]
+          ],
+          3,
+          1
+        ],
+        "path": "error",
+        "expected": 0
+      },
+      {
+        "name": "位置连续",
+        "args": [
+          [
+            [
+              [
+                [
+                  1,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  1
+                ]
+              ],
+              [
+                [
+                  1,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  1
+                ]
+              ],
+              [
+                [
+                  1,
+                  1,
+                  1,
+                  1
+                ],
+                [
+                  2,
+                  0,
+                  0,
+                  2
+                ]
+              ]
+            ]
+          ],
+          3,
+          1
+        ],
+        "path": "positions",
+        "expected": [
+          3,
+          4,
+          5
+        ]
+      },
+      {
+        "name": "第二种分割",
+        "args": [
+          [
+            [
+              [
+                [
+                  1,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  1
+                ]
+              ],
+              [
+                [
+                  1,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  1
+                ]
+              ],
+              [
+                [
+                  1,
+                  1,
+                  1,
+                  1
+                ],
+                [
+                  2,
+                  0,
+                  0,
+                  2
+                ]
+              ]
+            ]
+          ],
+          0,
+          2
+        ],
+        "path": "error",
+        "expected": 0
+      }
+    ],
+    "scenarios": [
+      {
+        "label": "prefill一项再decode",
+        "args": [
+          [
+            [
+              [
+                [
+                  1,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  1
+                ]
+              ],
+              [
+                [
+                  1,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  1
+                ]
+              ],
+              [
+                [
+                  1,
+                  1,
+                  1,
+                  1
+                ],
+                [
+                  2,
+                  0,
+                  0,
+                  2
+                ]
+              ]
+            ]
+          ],
+          3,
+          1
+        ]
+      },
+      {
+        "label": "prefill两项再decode",
+        "args": [
+          [
+            [
+              [
+                [
+                  1,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  1
+                ]
+              ],
+              [
+                [
+                  1,
+                  0,
+                  1,
+                  0
+                ],
+                [
+                  0,
+                  1,
+                  0,
+                  1
+                ]
+              ],
+              [
+                [
+                  1,
+                  1,
+                  1,
+                  1
+                ],
+                [
+                  2,
+                  0,
+                  0,
+                  2
+                ]
+              ]
+            ]
+          ],
+          0,
+          2
+        ]
+      }
+    ],
+    "views": [
+      [
+        "matrix",
+        "完整旋转",
+        "after"
+      ],
+      [
+        "matrix",
+        "分块旋转",
+        "incremental"
+      ],
+      [
+        "cache",
+        "绝对位置",
+        "positions"
+      ],
+      [
+        "metric",
+        "对齐误差",
+        "error"
+      ]
+    ],
+    "hints": [
+      "第一块从offset开始，第二块从offset+split开始。",
+      "记录最大误差与实际绝对位置。"
+    ],
+    "note": ""
+  },
+  {
+    "id": "12-interpolated-attention",
+    "lesson": "12-length-extrapolation.html",
+    "course": 12,
+    "title": "实现接入 Attention 的位置插值",
+    "function": "interpolated_attention",
+    "targets": [
+      "interpolated_attention"
+    ],
+    "task": "将位置缩放接入RoPE Q/K，对比原始与插值后的Attention",
+    "stages": [
+      "scale>0，位置统一除以scale。",
+      "保持原模型频率表不变，对比两组Attention权重。"
+    ],
+    "cases": [
+      {
+        "name": "坐标缩放",
+        "args": [
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
           ],
           2
         ],
+        "path": "positions",
         "expected": [
           0,
           0.5,
-          1,
-          3
+          1
         ]
       },
       {
         "name": "不缩放",
         "args": [
           [
-            0,
-            4
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
           ],
           1
         ],
+        "path": "positions",
         "expected": [
           0,
-          4
+          1,
+          2
         ]
       },
       {
-        "name": "空输入",
-        "args": [
-          [],
-          2
-        ],
-        "expected": []
-      },
-      {
-        "name": "小数坐标",
+        "name": "首位置不变",
         "args": [
           [
-            0.5,
-            3.5
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          4
+        ],
+        "path": "weights.0",
+        "expected": [
+          1,
+          0,
+          0
+        ]
+      }
+    ],
+    "scenarios": [
+      {
+        "label": "二倍位置插值",
+        "args": [
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
           ],
           2
-        ],
-        "expected": [
-          0.25,
-          1.75
         ]
+      },
+      {
+        "label": "四倍位置插值",
+        "args": [
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          4
+        ]
+      }
+    ],
+    "views": [
+      [
+        "cache",
+        "缩放后位置",
+        "positions"
+      ],
+      [
+        "heatmap",
+        "原始Attention",
+        "original_weights"
+      ],
+      [
+        "heatmap",
+        "插值Attention",
+        "weights"
+      ],
+      [
+        "matrix",
+        "输出",
+        "output"
+      ]
+    ],
+    "hints": [
+      "scale>0，位置统一除以scale。",
+      "保持原模型频率表不变，对比两组Attention权重。"
+    ],
+    "note": "计算可运行不代表模型具备更长上下文能力；真实评估见本课配套Notebook。"
+  },
+  {
+    "id": "12-scaled-cache",
+    "lesson": "12-length-extrapolation.html",
+    "course": 12,
+    "title": "验证插值位置与 KV Cache 一致性",
+    "function": "scaled_cache_attention",
+    "targets": [
+      "scaled_cache_attention"
+    ],
+    "task": "用同一缩放策略构建历史K与新Q，核对完整和增量输出",
+    "stages": [
+      "历史K和当前Q都用(offset+t)/scale。",
+      "不能重复缩放，改变scale后须重建旧缓存。"
+    ],
+    "cases": [
+      {
+        "name": "插值增量一致",
+        "args": [
+          [
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
+          ],
+          2,
+          3
+        ],
+        "path": "error",
+        "expected": 0
       },
       {
         "name": "缩放一次",
         "args": [
           [
-            8
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
           ],
+          4,
           4
         ],
+        "path": "positions",
         "expected": [
-          2
+          1,
+          1.25,
+          1.5
         ]
       },
       {
-        "name": "拒绝零比例",
+        "name": "单token",
         "args": [
           [
-            1
+            [
+              1,
+              2
+            ]
           ],
-          0
+          2,
+          5
         ],
-        "raises": "ValueError"
-      },
-      {
-        "name": "拒绝负比例",
-        "args": [
+        "path": "incremental",
+        "expected": [
           [
-            1
-          ],
-          -2
-        ],
-        "raises": "ValueError"
+            1,
+            2
+          ]
+        ]
       }
     ],
     "scenarios": [
       {
-        "label": "二倍插值",
+        "label": "非零offset插值",
         "args": [
           [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
           ],
-          2
+          2,
+          3
         ]
       },
       {
-        "label": "四倍插值",
+        "label": "四倍插值缓存",
         "args": [
           [
-            0,
-            4,
-            8,
-            12
+            [
+              1,
+              0
+            ],
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              1
+            ]
           ],
+          4,
           4
         ]
       }
     ],
-    "hints": [
-      "先检查 scale 是否为正数。",
-      "原坐标除以 scale，不要乘，也不要做两次缩放。"
+    "views": [
+      [
+        "cache",
+        "缩放位置",
+        "positions"
+      ],
+      [
+        "matrix",
+        "完整输出",
+        "full"
+      ],
+      [
+        "matrix",
+        "增量输出",
+        "incremental"
+      ],
+      [
+        "metric",
+        "最大误差",
+        "error"
+      ]
     ],
-    "note": "只演示线性位置插值。更长输入可运行不意味着真实模型长文本质量有保证。"
+    "hints": [
+      "历史K和当前Q都用(offset+t)/scale。",
+      "不能重复缩放，改变scale后须重建旧缓存。"
+    ],
+    "note": ""
   }
 ]

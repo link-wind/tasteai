@@ -52,22 +52,47 @@
   function el(tag,text,cls){const node=document.createElement(tag);if(text!==undefined)node.textContent=String(text);if(cls)node.className=cls;return node;}
   function tokens(ids,pieces){const band=el('div',undefined,'python-token-band');ids.forEach((id,i)=>{const chip=el('span',undefined,'python-token');chip.append(el('b',JSON.stringify(pieces[i])),el('small','ID '+id));chip.dataset.tokenId=String(id);band.append(chip);});return band;}
   function showVisual(data){
-    output.append(el('h3',data.title),el('p','输入参数：'),el('pre',JSON.stringify(data.input,null,2),'python-console'));
-    const figure=el('figure',undefined,'exercise-result-figure');figure.setAttribute('aria-label','你的 Python 返回的结果图');
-    let rows=0;
-    function draw(value,path){
-      if(rows>=60)return;
-      if(Array.isArray(value)&&value.some(Array.isArray)){value.forEach((v,i)=>draw(v,path+'['+i+']'));return;}
-      rows++;const row=el('div',undefined,'exercise-vector');row.append(el('strong',path));
-      const values=Array.isArray(value)?value:[value];
-      const scale=Math.max(1,...values.filter(v=>typeof v==='number').map(Math.abs));
-      const band=el('div',undefined,'exercise-cells');
-      values.slice(0,80).forEach((v,i)=>{const cell=el('div',undefined,'exercise-cell');cell.append(el('small',i),el('code',typeof v==='number'?Number(v.toPrecision(7)):JSON.stringify(v)));
-        if(typeof v==='number'){const bar=el('span',undefined,'exercise-bar');bar.style.width=(Math.abs(v)/scale*100)+'%';bar.dataset.negative=String(v<0);cell.append(bar);}band.append(cell);});
-      if(!values.length)band.append(el('span','[] 空列表'));row.append(band);figure.append(row);
+    output.append(el('h3',data.title));
+    const views=data.views||[];
+    const get=path=>path?path.split('.').reduce((v,k)=>v?.[k],data.value):data.value;
+    function vectorRows(value){
+      if(!Array.isArray(value))return [];
+      if(!value.some(Array.isArray))return [value];
+      return value.flatMap(vectorRows);
     }
-    draw(data.value,'输出');figure.append(el('figcaption','每格对应一个返回元素；条形长度按本行最大绝对值归一化，红色表示负数。最多显示60行，每行80项；完整输出见下方。'));output.append(figure);
-    const detail=el('details',undefined,'supplement');detail.append(el('summary','查看完整 Python 返回值'),el('pre',JSON.stringify(data.value,null,2),'python-console'));output.append(detail);
+    function chips(parent,values){const band=el('div',undefined,'exercise-cells');values.slice(0,100).forEach((v,i)=>{const chip=el('div',undefined,'exercise-cell');chip.append(el('small',i),el('code',typeof v==='string'?JSON.stringify(v):v));band.append(chip);});parent.append(band);}
+    function svgNode(name,attrs={}){const n=document.createElementNS('http://www.w3.org/2000/svg',name);Object.entries(attrs).forEach(([k,v])=>n.setAttribute(k,v));return n;}
+    for(const [kind,title,path]of views){
+      const value=get(path);if(value===undefined)continue;
+      const figure=el('figure',undefined,'algorithm-figure');figure.append(el('figcaption',title));
+      if(kind==='metric')figure.append(el('strong',typeof value==='number'?value.toExponential(3):value,'algorithm-metric'));
+      else if(kind==='text')figure.append(el('pre',typeof value==='string'?value:JSON.stringify(value,null,2),'python-console'));
+      else if(kind==='tokens'){vectorRows(value).slice(0,20).forEach(row=>chips(figure,row));}
+      else if(kind==='merges'){value.slice(0,30).forEach((row,i)=>figure.append(el('p',`第${i+1}轮：${row[0]} + ${row[1]} → ${row[2]}`)));}
+      else if(kind==='cache'){
+        const rows=Array.isArray(value[0])?value:value.map(n=>path==='cache_lengths'?Array.from({length:n},(_,i)=>i):[n]);
+        rows.slice(0,24).forEach((row,i)=>{figure.append(el('small','步骤 '+i));chips(figure,row);});
+      }else if(kind==='curve'){
+        const values=value.filter(v=>typeof v==='number');const svg=svgNode('svg',{viewBox:'0 0 380 130',role:'img','aria-label':title});
+        const max=Math.max(1,...values),min=Math.min(0,...values);const points=values.map((v,i)=>[20+i*340/Math.max(1,values.length-1),110-(v-min)/(max-min)*90]);
+        svg.append(svgNode('path',{d:'M20 15V110H365',fill:'none',stroke:'#aaa'}));svg.append(svgNode('polyline',{points:points.map(p=>p.join(',')).join(' '),fill:'none',stroke:'#247550','stroke-width':2}));
+        points.forEach(([cx,cy],i)=>{svg.append(svgNode('circle',{cx,cy,r:3,fill:'#247550'}));const t=svgNode('text',{x:cx,y:cy-7,'text-anchor':'middle','font-size':10});t.textContent=values[i];svg.append(t);});figure.append(svg);figure.append(el('small','横轴：轮次；纵轴：实际计数。'));
+      }else if(kind==='rotation'){
+        const before=vectorRows(data.value.before||[]),after=vectorRows(value);after.slice(0,4).forEach((row,i)=>{
+          const old=before[i];if(!old)return;const max=Math.max(1,...old.map(Math.abs),...row.map(Math.abs));
+          const svg=svgNode('svg',{viewBox:'0 0 180 180',role:'img','aria-label':title+' 向量'+i});
+          svg.append(svgNode('path',{d:'M10 90H170M90 10V170',stroke:'#ddd'}));
+          [[old,'#a0a5aa'],[row,'#247550']].forEach(([v,color])=>svg.append(svgNode('line',{x1:90,y1:90,x2:90+v[0]/max*65,y2:90-v[1]/max*65,stroke:color,'stroke-width':3})));
+          figure.append(svg);
+        });figure.append(el('small','灰：旋转前；绿：旋转后。每幅图显示一个向量的首个二维平面。'));
+      }else{
+        const rows=vectorRows(value);const scale=Math.max(1e-12,...rows.flat().filter(v=>typeof v==='number').map(Math.abs));
+        const table=el('table',undefined,'algorithm-matrix');rows.slice(0,40).forEach((row,i)=>{const tr=el('tr');tr.append(el('th',i));row.slice(0,40).forEach(v=>{const td=el('td',v===null?'×':typeof v==='number'?Number(v.toPrecision(5)):v);if(typeof v==='number')td.style.backgroundColor=`rgba(${v<0?'183,80,65':'40,130,85'},${.08+.65*Math.abs(v)/scale})`;tr.append(td);});table.append(tr);});figure.append(table);
+        figure.append(el('small',kind==='heatmap'?'行：查询位置；列：键位置。多头矩阵按头依次纵向排列；颜色表示本图数值大小。':'行列对应返回张量顺序；多批次/多头按顺序纵向展开。×表示被遮罩。'));
+      }
+      output.append(figure);
+    }
+    const detail=el('details',undefined,'supplement');detail.append(el('summary','查看输入与完整返回值'),el('pre',JSON.stringify({input:data.input,result:data.value},null,2),'python-console'));output.append(detail);
   }
   function show(payload,mode){
     output.replaceChildren();
@@ -142,7 +167,7 @@
   $('python-reset').addEventListener('click',()=>load(starter));
   $('python-load-solution').addEventListener('click',()=>load(solution));
   scenario.addEventListener('change',()=>{clearTrace();empty('输入已切换，请重新运行代码。');setStatus('语料已切换。');});
-  $('python-download').addEventListener('click',()=>{const url=URL.createObjectURL(new Blob([editor.value],{type:'text/x-python;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=lab.dataset.exercise?'tasteai-'+lab.dataset.exercise+'.py':'tasteai-bpe.py';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
+  $('python-download').addEventListener('click',()=>{const helper=$('python-math')?.content.textContent;const downloaded=helper?helper+'\n'+editor.value.replace(/^from tasteai_math import .+$/gm,''):editor.value;const url=URL.createObjectURL(new Blob([downloaded],{type:'text/x-python;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=lab.dataset.exercise?'tasteai-'+lab.dataset.exercise+'.py':'tasteai-bpe.py';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});
   window.addEventListener('pagehide',()=>{pauseTrace();clearTimeout(timer);worker?.terminate();worker=null;ready=false;pending=null;setBusy(false);});
   paint();editor.closest('.python-editor').classList.add('editor-enabled');setBusy(false);
 })();

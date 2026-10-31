@@ -12,6 +12,9 @@ async function initialize(harnessURL, exercise, configURL) {
     if(exercise){
       const configResponse=await fetch(configURL,{cache:'no-store'});
       if(!configResponse.ok)throw new Error('题目数据加载失败。');
+      const helper=await fetch(new URL('./core/tasteai_math.py',configURL));
+      if(!helper.ok)throw new Error('矩阵工具加载失败。');
+      python.globals.set('MATH_SOURCE',await helper.text());
       python.globals.set('LAB_ID',exercise);
       python.globals.set('EXERCISE_JSON',await configResponse.text());
     }

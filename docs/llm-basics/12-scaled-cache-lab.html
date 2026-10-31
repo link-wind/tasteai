@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="TasteAI：通过图解、代码和实验，探索语言、多模态与生成式 AI。"><title>验证插值位置与 KV Cache 一致性 · 编程实验 · TasteAI</title><link rel="icon" href="data:,"><link rel="stylesheet" href="reading.css?v=477041aa38"></head>
+<body><a class="skip" href="#main">跳到正文</a><header class="site-header"><a class="site-brand" href="index.html">TasteAI</a><span class="site-subtitle">学习文档</span><nav aria-label="网站导航"><a href="index.html">课程目录</a><a href="index.html#visual-guide">图解实验</a><a href="index.html#about">关于</a></nav></header><aside class="sidebar"><details class="course-nav" open><summary>课程目录</summary><nav aria-label="全课程目录"><ul><li class="branch"><details open><summary>原理精讲</summary><ul><li class="branch"><details open><summary>基础知识</summary><ul><li class="branch"><details ><summary>词元化</summary><ul><li class="leaf"><a href="01-tokenization-basics.html">Tokenization 基础</a></li><li class="leaf"><a href="02-bpe-algorithm.html">BPE 算法详解</a></li><li class="leaf"><a href="03-gpt-tokenizers.html">GPT 系列 Tokenizer</a></li><li class="leaf"><a href="04-bpe-engineering.html">BPE 训练工程化</a></li></ul></details></li><li class="branch"><details ><summary>模型架构</summary><ul><li class="branch"><details ><summary>Transformer LM</summary><a class="series-entry" href="transformer-lm.html">Transformer LM 导读 →</a><ul><li class="leaf"><a href="05-token-ids-to-logits.html">从 token ids 到 logits</a></li><li class="leaf"><a href="06-embedding-lm-head.html">Embedding 与 LM Head</a></li></ul></details></li></ul></details></li><li class="branch"><details ><summary>Attention 机制</summary><ul><li class="leaf"><a href="07-self-attention-gqa.html">Self-Attention 到 GQA</a></li><li class="leaf"><a href="08-attention-sink.html">Attention Sink</a></li></ul></details></li><li class="branch"><details open><summary>位置编码</summary><ul><li class="leaf"><a href="09-position-encoding.html">位置编码基础</a></li><li class="leaf"><a href="10-rope-theory.html">RoPE 数学推导</a></li><li class="leaf"><a href="11-rope-implementation.html">RoPE 代码实现</a></li><li class="leaf"><a href="12-length-extrapolation.html" aria-current="page">长度外推</a></li></ul></details></li></ul></details></li><li class="branch"><details ><summary>系统工程</summary><ul><li class="branch"><details ><summary>GPU 编程基础</summary><ul><li class="leaf"><span>GPU 架构基础</span><small>待编写</small></li><li class="leaf"><span>张量布局</span><small>待编写</small></li><li class="leaf"><span>Triton 入门：向量加法</span><small>待编写</small></li></ul></details></li><li class="branch"><details ><summary>FlashAttention</summary><ul><li class="leaf"><span>Flash Attention 原理详解</span><small>待编写</small></li><li class="leaf"><span>从朴素实现到 Auto-Tuning</span><small>待编写</small></li><li class="leaf"><span>Block Pointer 与多维支持</span><small>待编写</small></li><li class="leaf"><span>Causal Masking 优化</span><small>待编写</small></li><li class="leaf"><span>Grouped Query Attention</span><small>待编写</small></li><li class="leaf"><span>反向传播实现</span><small>待编写</small></li></ul></details></li><li class="branch"><details ><summary>分布式训练</summary><ul><li class="leaf"><span>数据并行</span><small>待编写</small></li><li class="leaf"><span>ZeRO 优化器</span><small>待编写</small></li><li class="leaf"><span>全分片数据并行</span><small>待编写</small></li><li class="leaf"><span>张量并行</span><small>待编写</small></li><li class="leaf"><span>流水线并行</span><small>待编写</small></li><li class="leaf"><span>多维混合并行</span><small>待编写</small></li></ul></details></li><li class="branch"><details ><summary>推理优化</summary><ul><li class="leaf"><span>KV Cache</span><small>待编写</small></li><li class="leaf"><span>Continuous Batching</span><small>待编写</small></li><li class="leaf"><span>PagedAttention</span><small>待编写</small></li></ul></details></li></ul></details></li></ul></details></li><li class="branch"><details ><summary>动手训练</summary><ul><li class="leaf"><span>动手训练</span><small>待编写</small></li></ul></details></li></ul></nav></details><p class="sidebar-note">基础知识 · 12 课</p><a href="https://cookllm.com/docs" target="_blank" rel="noopener">CookLLM 参考 ↗</a></aside><main id="main" tabindex="-1"><div class="python-lab-page">
+<div class="topline"><a href="12-length-extrapolation.html">← 本课原理</a><span>/ 12 · 动手实现</span><button id="font-toggle" aria-pressed="false">放大字号</button></div>
+<header><h1>验证插值位置与 KV Cache 一致性</h1><p class="lead">实现完整模块，观察中间结果，验证算法性质。</p></header><details class="inline-toc"><summary>本页目录</summary><nav class="page-toc" aria-label="本页目录"><strong>本页目录</strong><ol><li><a href="#task">实现目标</a></li><li><a href="#workspace">参考与源码</a></li><li><a href="#runtime-notes">运行说明</a></li></ol></nav></details>
+<section id="task" class="python-task"><h2>实现目标</h2><p>用同一缩放策略构建历史K与新Q，核对完整和增量输出</p><ol class="lab-steps"><li>历史K和当前Q都用(offset+t)/scale。</li><li>不能重复缩放，改变scale后须重建旧缓存。</li></ol><p class="caption"></p><p class="lab-source">编辑器中标有 TODO 的函数由你实现，其余是已提供的前置模块。<a href="python-lab/core/tasteai_math.py">矩阵工具源码</a>仅提供点积、矩阵乘法和 softmax。输入不得被修改。</p></section>
+<section id="workspace"><h2 class="sr-only">代码与结果</h2><div id="python-workbench" class="python-workbench" data-exercise="12-scaled-cache" data-config="python-lab/exercises.json?v=61adda7ba8" data-worker="python-lab-worker.js?v=25889ce3a5" data-harness="python-lab/exercise-harness.py?v=4df825a6dd">
+<div class="python-code-panel"><div class="python-panel-heading"><strong>Python 代码</strong><span id="python-lines"></span><button type="button" id="python-download">下载当前代码</button></div>
+<div class="python-editor"><pre class="editor-highlight" data-editor-mirror aria-hidden="true"><code id="python-highlight"></code></pre><textarea id="python-code" aria-label="Python 代码编辑器" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" maxlength="40000">import math
+import re
+from collections import Counter
+from tasteai_math import dot, matmul, softmax, identity
+
+def rope_attention(x, offset=0, scale=1):
+    q = [rotate(row, (offset + t) / scale) for t, row in enumerate(x)]
+    k = [rotate(row, (offset + t) / scale) for t, row in enumerate(x)]
+    weights = []
+    for i, query in enumerate(q):
+        weights.append(softmax([dot(query, key) / math.sqrt(len(query)) if j &lt;= i else -math.inf for j, key in enumerate(k)]))
+    return {&#x27;before&#x27;: x, &#x27;after&#x27;: q, &#x27;weights&#x27;: weights, &#x27;output&#x27;: matmul(weights, x)}
+
+def rotate(vector, position, base=10000):
+    output = []
+    for i in range(len(vector) // 2):
+        angle = position / base ** (2 * i / len(vector))
+        c, s = (math.cos(angle), math.sin(angle))
+        a, b = vector[2 * i:2 * i + 2]
+        output.extend([a * c - b * s, a * s + b * c])
+    return output
+
+def scaled_cache_attention(x, scale, offset=0):
+    &quot;&quot;&quot;TODO：用同一缩放策略构建历史K与新Q，核对完整和增量输出&quot;&quot;&quot;
+    raise NotImplementedError(&#x27;请完成 scaled_cache_attention&#x27;)
+</textarea></div>
+<div class="python-toolbar"><button type="button" id="python-run" class="primary-action" disabled>运行代码</button><button type="button" id="python-trace" disabled>逐行观察</button><button type="button" id="python-check" disabled>检查答案</button><button type="button" id="python-stop" disabled>停止</button><button type="button" id="python-reset" disabled>恢复初始代码</button></div>
+<div id="python-trace-panel" hidden><div class="python-toolbar"><button id="trace-prev" type="button">上一步</button><button id="trace-next" type="button">下一步</button><button id="trace-play" type="button">自动播放</button><span id="trace-position" role="status"></span></div><p class="python-editor-note">真实执行后的轨迹回放；高亮行处于执行前，返回步骤显示返回值。最多1500步。</p><pre id="trace-variables" class="python-console" aria-label="当前步骤的局部变量"></pre></div>
+<p class="python-editor-note">Ctrl / ⌘ + Enter 运行 · Tab 缩进 · 草稿仅存当前浏览器</p><label class="python-scenario-label" for="python-scenario">实验输入<select id="python-scenario"><option value="standard">非零offset插值</option><option value="overlap">四倍插值缓存</option></select></label>
+<p id="python-status" class="python-status" role="status" aria-live="polite">点击运行后加载 Python。先补全 TODO，也可展开参考实现。</p><noscript><p>启用JavaScript后可运行；也可下载独立Python源码。</p></noscript></div>
+<div class="python-output-panel"><div class="python-panel-heading"><strong>实际运行结果</strong><span>来自你的 Python</span></div><div id="python-result"><p class="lab-empty">运行后显示本次结果，不会预先填入正确答案。</p></div></div></div></section>
+<template id="python-math">&quot;&quot;&quot;已提供的矩阵工具；算法目标在各实验中实现。仅用于小规模教学。&quot;&quot;&quot;
+import math
+
+def dot(a,b):
+    return sum(x*y for x,y in zip(a,b))
+
+def transpose(a):
+    return [list(row) for row in zip(*a)]
+
+def matmul(a,b):
+    return [[dot(row,col) for col in transpose(b)] for row in a]
+
+def softmax(row):
+    maximum=max(row)
+    values=[math.exp(x-maximum) for x in row]
+    return [x/sum(values) for x in values]
+
+def identity(n):
+    return [[float(i==j) for j in range(n)] for i in range(n)]
+</template><section id="help" class="python-help"><h2>参考与源码</h2><details class="supplement"><summary>查看参考答案</summary><pre data-language="Python"><code class="language-python"><span class="syntax-keyword">import</span> math
+<span class="syntax-keyword">import</span> re
+<span class="syntax-keyword">from</span> collections <span class="syntax-keyword">import</span> Counter
+<span class="syntax-keyword">from</span> tasteai_math <span class="syntax-keyword">import</span> dot, matmul, softmax, identity
+
+<span class="syntax-keyword">def</span> rope_attention(x,offset=<span class="syntax-number">0</span>,scale=<span class="syntax-number">1</span>):
+    q=[rotate(row,(offset+t)/scale) <span class="syntax-keyword">for</span> t,row <span class="syntax-keyword">in</span> <span class="syntax-builtin">enumerate</span>(x)]
+    k=[rotate(row,(offset+t)/scale) <span class="syntax-keyword">for</span> t,row <span class="syntax-keyword">in</span> <span class="syntax-builtin">enumerate</span>(x)]
+    weights=[]
+    <span class="syntax-keyword">for</span> i,query <span class="syntax-keyword">in</span> <span class="syntax-builtin">enumerate</span>(q):
+        weights.append(softmax([dot(query,key)/math.sqrt(<span class="syntax-builtin">len</span>(query)) <span class="syntax-keyword">if</span> j&lt;=i <span class="syntax-keyword">else</span> -math.inf <span class="syntax-keyword">for</span> j,key <span class="syntax-keyword">in</span> <span class="syntax-builtin">enumerate</span>(k)]))
+    <span class="syntax-keyword">return</span> {<span class="syntax-string">&#x27;before&#x27;</span>:x,<span class="syntax-string">&#x27;after&#x27;</span>:q,<span class="syntax-string">&#x27;weights&#x27;</span>:weights,<span class="syntax-string">&#x27;output&#x27;</span>:matmul(weights,x)}
+
+<span class="syntax-keyword">def</span> rotate(vector,position,base=<span class="syntax-number">10000</span>):
+    output=[]
+    <span class="syntax-keyword">for</span> i <span class="syntax-keyword">in</span> <span class="syntax-builtin">range</span>(<span class="syntax-builtin">len</span>(vector)//<span class="syntax-number">2</span>):
+        angle=position/base**(<span class="syntax-number">2</span>*i/<span class="syntax-builtin">len</span>(vector))
+        c,s=math.cos(angle),math.sin(angle)
+        a,b=vector[<span class="syntax-number">2</span>*i:<span class="syntax-number">2</span>*i+<span class="syntax-number">2</span>]
+        output.extend([a*c-b*s,a*s+b*c])
+    <span class="syntax-keyword">return</span> output
+
+<span class="syntax-keyword">def</span> scaled_cache_attention(x,scale,offset=<span class="syntax-number">0</span>):
+    <span class="syntax-keyword">if</span> scale&lt;=<span class="syntax-number">0</span>:<span class="syntax-keyword">raise</span> ValueError(<span class="syntax-string">&#x27;scale必须大于0&#x27;</span>)
+    keys=[]
+    values=[]
+    output=[]
+    <span class="syntax-keyword">for</span> t,row <span class="syntax-keyword">in</span> <span class="syntax-builtin">enumerate</span>(x):
+        query=rotate(row,(offset+t)/scale)
+        keys.append(rotate(row,(offset+t)/scale))
+        values.append(row[:])
+        weights=softmax([dot(query,key)/math.sqrt(<span class="syntax-builtin">len</span>(row)) <span class="syntax-keyword">for</span> key <span class="syntax-keyword">in</span> keys])
+        output.append(matmul([weights],values)[<span class="syntax-number">0</span>])
+    full=rope_attention(x,offset,scale)[<span class="syntax-string">&#x27;output&#x27;</span>]
+    <span class="syntax-keyword">return</span> {<span class="syntax-string">&#x27;full&#x27;</span>:full,<span class="syntax-string">&#x27;incremental&#x27;</span>:output,<span class="syntax-string">&#x27;error&#x27;</span>:max(abs(a-b) <span class="syntax-keyword">for</span> r,s <span class="syntax-keyword">in</span> <span class="syntax-builtin">zip</span>(full,output) <span class="syntax-keyword">for</span> a,b <span class="syntax-keyword">in</span> <span class="syntax-builtin">zip</span>(r,s)),
+            <span class="syntax-string">&#x27;positions&#x27;</span>:[(offset+t)/scale <span class="syntax-keyword">for</span> t <span class="syntax-keyword">in</span> <span class="syntax-builtin">range</span>(<span class="syntax-builtin">len</span>(x))]}
+</code></pre><button type="button" id="python-load-solution" disabled>将参考答案载入编辑器</button></details><template id="python-solution">import math
+import re
+from collections import Counter
+from tasteai_math import dot, matmul, softmax, identity
+
+def rope_attention(x,offset=0,scale=1):
+    q=[rotate(row,(offset+t)/scale) for t,row in enumerate(x)]
+    k=[rotate(row,(offset+t)/scale) for t,row in enumerate(x)]
+    weights=[]
+    for i,query in enumerate(q):
+        weights.append(softmax([dot(query,key)/math.sqrt(len(query)) if j&lt;=i else -math.inf for j,key in enumerate(k)]))
+    return {&#x27;before&#x27;:x,&#x27;after&#x27;:q,&#x27;weights&#x27;:weights,&#x27;output&#x27;:matmul(weights,x)}
+
+def rotate(vector,position,base=10000):
+    output=[]
+    for i in range(len(vector)//2):
+        angle=position/base**(2*i/len(vector))
+        c,s=math.cos(angle),math.sin(angle)
+        a,b=vector[2*i:2*i+2]
+        output.extend([a*c-b*s,a*s+b*c])
+    return output
+
+def scaled_cache_attention(x,scale,offset=0):
+    if scale&lt;=0:raise ValueError(&#x27;scale必须大于0&#x27;)
+    keys=[]
+    values=[]
+    output=[]
+    for t,row in enumerate(x):
+        query=rotate(row,(offset+t)/scale)
+        keys.append(rotate(row,(offset+t)/scale))
+        values.append(row[:])
+        weights=softmax([dot(query,key)/math.sqrt(len(row)) for key in keys])
+        output.append(matmul([weights],values)[0])
+    full=rope_attention(x,offset,scale)[&#x27;output&#x27;]
+    return {&#x27;full&#x27;:full,&#x27;incremental&#x27;:output,&#x27;error&#x27;:max(abs(a-b) for r,s in zip(full,output) for a,b in zip(r,s)),
+            &#x27;positions&#x27;:[(offset+t)/scale for t in range(len(x))]}
+</template>
+<p class="caption"><a href="python-lab/12-scaled-cache/starter.py" download>初始框架</a> · <a href="python-lab/12-scaled-cache/download.py" download>可独立运行的完整源码</a> · <a href="python-lab/exercise-harness.py">检查器</a>。自动检查是学习反馈，不是考试评分。</p></section>
+<section id="runtime-notes" class="sources"><h2>运行说明</h2><p>算法以小规模 Python 列表张量实现，无需GPU。首次运行按需加载本站 Python 运行时。运行超过8秒自动停止，也可主动停止。代码与草稿不会上传。</p><p>图形展示本次最终结果；逐行面板展示执行过程。可下载源码修改输入或扩展批次。真实框架与模型实验在本课配套Notebook中运行。</p></section>
+<nav class="chapter-links"><a href="12-length-extrapolation.html">← 回到本课</a><a href="coding-labs.html#course-12">本课与全部实验 →</a></nav></div>
+<footer>TasteAI · AI 学习笔记 · <a href="index.html#about">资料说明</a></footer></main><aside class="page-outline"><nav class="page-toc" aria-label="本页目录"><strong>本页目录</strong><ol><li><a href="#task">实现目标</a></li><li><a href="#workspace">参考与源码</a></li><li><a href="#runtime-notes">运行说明</a></li></ol></nav></aside><script src="foundation-math.js?v=abe12d2e9a"></script><script src="visual-explanations.js?v=51f7f2bc1b"></script><script src="reading.js?v=7e339cdf2c"></script><script src="python-lab.js?v=a851544a39"></script></body></html>

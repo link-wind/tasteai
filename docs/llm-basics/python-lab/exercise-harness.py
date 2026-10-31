@@ -1,5 +1,9 @@
 from contextlib import redirect_stdout, redirect_stderr
-import json, math, traceback, sys, copy
+import json, math, traceback, sys, copy, types
+if "MATH_SOURCE" in globals():
+    module=types.ModuleType("tasteai_math")
+    exec(MATH_SOURCE,module.__dict__)
+    sys.modules["tasteai_math"]=module
 
 class BoundedOutput:
     def __init__(self, limit=12000):
@@ -34,6 +38,8 @@ def trace_snapshot(frame, event, arg):
             "event": event, "variables": values}
 
 def close(actual, expected):
+    if isinstance(expected, dict):
+        return isinstance(actual, dict) and set(actual)==set(expected) and all(close(actual[k],v) for k,v in expected.items())
     if isinstance(expected, list):
         return isinstance(actual, list) and len(actual) == len(expected) and all(close(a,b) for a,b in zip(actual, expected))
     if isinstance(expected, (int,float)):
@@ -69,7 +75,10 @@ def run_lab(code, scenario="standard", mode="run"):
                 for test in config['cases']:
                     args=copy.deepcopy(test['args']); before=copy.deepcopy(args)
                     try:
-                        actual=function(*args)
+                        tested=namespace.get(test.get('function',config['function']))
+                        actual=tested(*args)
+                        for key in test.get('path','').split('.') if test.get('path') else []:
+                            actual=actual[int(key)] if isinstance(actual,list) else actual[key]
                         passed='raises' not in test and close(actual,test['expected']) and args==before
                         detail='通过' if passed else '实际：'+repr(actual)[:300]+'；预期：'+repr(test.get('expected',test.get('raises')))[:300]+'；输入不得被修改'
                     except Exception as error:
@@ -82,8 +91,8 @@ def run_lab(code, scenario="standard", mode="run"):
             # Limit graph data; never substitute the reference answer for actual output.
             packed=json.dumps(actual,ensure_ascii=False,allow_nan=False)
             if len(packed)>30000: raise ValueError('结果过长，请缩短输出。')
-            if not isinstance(actual,list): raise TypeError('本题函数应返回 list。')
-            payload['visual']=dict(title=sample['label'],input=sample['args'],value=actual)
+            if not isinstance(actual,(list,dict)): raise TypeError('请按题目约定返回结构化结果。')
+            payload['visual']=dict(title=sample['label'],input=sample['args'],value=actual,views=config.get('views',[]))
             payload['ok']=True
         except Exception:
             payload['error']=traceback.format_exc(limit=5)[-5000:]

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="TasteAI：通过图解、代码和实验，探索语言、多模态与生成式 AI。"><title>实现 Token IDs 到 Logits 的前向流程 · 编程实验 · TasteAI</title><link rel="icon" href="data:,"><link rel="stylesheet" href="reading.css?v=477041aa38"></head>
+<body><a class="skip" href="#main">跳到正文</a><header class="site-header"><a class="site-brand" href="index.html">TasteAI</a><span class="site-subtitle">学习文档</span><nav aria-label="网站导航"><a href="index.html">课程目录</a><a href="index.html#visual-guide">图解实验</a><a href="index.html#about">关于</a></nav></header><aside class="sidebar"><details class="course-nav" open><summary>课程目录</summary><nav aria-label="全课程目录"><ul><li class="branch"><details open><summary>原理精讲</summary><ul><li class="branch"><details open><summary>基础知识</summary><ul><li class="branch"><details ><summary>词元化</summary><ul><li class="leaf"><a href="01-tokenization-basics.html">Tokenization 基础</a></li><li class="leaf"><a href="02-bpe-algorithm.html">BPE 算法详解</a></li><li class="leaf"><a href="03-gpt-tokenizers.html">GPT 系列 Tokenizer</a></li><li class="leaf"><a href="04-bpe-engineering.html">BPE 训练工程化</a></li></ul></details></li><li class="branch"><details open><summary>模型架构</summary><ul><li class="branch"><details open><summary>Transformer LM</summary><a class="series-entry" href="transformer-lm.html">Transformer LM 导读 →</a><ul><li class="leaf"><a href="05-token-ids-to-logits.html" aria-current="page">从 token ids 到 logits</a></li><li class="leaf"><a href="06-embedding-lm-head.html">Embedding 与 LM Head</a></li></ul></details></li></ul></details></li><li class="branch"><details ><summary>Attention 机制</summary><ul><li class="leaf"><a href="07-self-attention-gqa.html">Self-Attention 到 GQA</a></li><li class="leaf"><a href="08-attention-sink.html">Attention Sink</a></li></ul></details></li><li class="branch"><details ><summary>位置编码</summary><ul><li class="leaf"><a href="09-position-encoding.html">位置编码基础</a></li><li class="leaf"><a href="10-rope-theory.html">RoPE 数学推导</a></li><li class="leaf"><a href="11-rope-implementation.html">RoPE 代码实现</a></li><li class="leaf"><a href="12-length-extrapolation.html">长度外推</a></li></ul></details></li></ul></details></li><li class="branch"><details ><summary>系统工程</summary><ul><li class="branch"><details ><summary>GPU 编程基础</summary><ul><li class="leaf"><span>GPU 架构基础</span><small>待编写</small></li><li class="leaf"><span>张量布局</span><small>待编写</small></li><li class="leaf"><span>Triton 入门：向量加法</span><small>待编写</small></li></ul></details></li><li class="branch"><details ><summary>FlashAttention</summary><ul><li class="leaf"><span>Flash Attention 原理详解</span><small>待编写</small></li><li class="leaf"><span>从朴素实现到 Auto-Tuning</span><small>待编写</small></li><li class="leaf"><span>Block Pointer 与多维支持</span><small>待编写</small></li><li class="leaf"><span>Causal Masking 优化</span><small>待编写</small></li><li class="leaf"><span>Grouped Query Attention</span><small>待编写</small></li><li class="leaf"><span>反向传播实现</span><small>待编写</small></li></ul></details></li><li class="branch"><details ><summary>分布式训练</summary><ul><li class="leaf"><span>数据并行</span><small>待编写</small></li><li class="leaf"><span>ZeRO 优化器</span><small>待编写</small></li><li class="leaf"><span>全分片数据并行</span><small>待编写</small></li><li class="leaf"><span>张量并行</span><small>待编写</small></li><li class="leaf"><span>流水线并行</span><small>待编写</small></li><li class="leaf"><span>多维混合并行</span><small>待编写</small></li></ul></details></li><li class="branch"><details ><summary>推理优化</summary><ul><li class="leaf"><span>KV Cache</span><small>待编写</small></li><li class="leaf"><span>Continuous Batching</span><small>待编写</small></li><li class="leaf"><span>PagedAttention</span><small>待编写</small></li></ul></details></li></ul></details></li></ul></details></li><li class="branch"><details ><summary>动手训练</summary><ul><li class="leaf"><span>动手训练</span><small>待编写</small></li></ul></details></li></ul></nav></details><p class="sidebar-note">基础知识 · 12 课</p><a href="https://cookllm.com/docs" target="_blank" rel="noopener">CookLLM 参考 ↗</a></aside><main id="main" tabindex="-1"><div class="python-lab-page">
+<div class="topline"><a href="05-token-ids-to-logits.html">← 本课原理</a><span>/ 05 · 动手实现</span><button id="font-toggle" aria-pressed="false">放大字号</button></div>
+<header><h1>实现 Token IDs 到 Logits 的前向流程</h1><p class="lead">实现完整模块，观察中间结果，验证算法性质。</p></header><details class="inline-toc"><summary>本页目录</summary><nav class="page-toc" aria-label="本页目录"><strong>本页目录</strong><ol><li><a href="#task">实现目标</a></li><li><a href="#workspace">参考与源码</a></li><li><a href="#runtime-notes">运行说明</a></li></ol></nav></details>
+<section id="task" class="python-task"><h2>实现目标</h2><p>Embedding查表、因果上下文层、词表投影和softmax</p><ol class="lab-steps"><li>查表得到[T,D]隐藏状态。</li><li>教学上下文层使用前缀平均，仅访问当前及过去位置。</li><li>投影得到[T,V]，最后一行用于预测下一token。</li></ol><p class="caption">这里用可手算的因果前缀平均层；第07课再实现真正Attention。</p><p class="lab-source">编辑器中标有 TODO 的函数由你实现，其余是已提供的前置模块。<a href="python-lab/core/tasteai_math.py">矩阵工具源码</a>仅提供点积、矩阵乘法和 softmax。输入不得被修改。</p></section>
+<section id="workspace"><h2 class="sr-only">代码与结果</h2><div id="python-workbench" class="python-workbench" data-exercise="05-lm-forward" data-config="python-lab/exercises.json?v=61adda7ba8" data-worker="python-lab-worker.js?v=25889ce3a5" data-harness="python-lab/exercise-harness.py?v=4df825a6dd">
+<div class="python-code-panel"><div class="python-panel-heading"><strong>Python 代码</strong><span id="python-lines"></span><button type="button" id="python-download">下载当前代码</button></div>
+<div class="python-editor"><pre class="editor-highlight" data-editor-mirror aria-hidden="true"><code id="python-highlight"></code></pre><textarea id="python-code" aria-label="Python 代码编辑器" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" maxlength="40000">import math
+import re
+from collections import Counter
+from tasteai_math import dot, matmul, softmax, identity
+
+def tiny_lm(ids, embedding, head):
+    &quot;&quot;&quot;TODO：Embedding查表、因果上下文层、词表投影和softmax&quot;&quot;&quot;
+    raise NotImplementedError(&#x27;请完成 tiny_lm&#x27;)
+</textarea></div>
+<div class="python-toolbar"><button type="button" id="python-run" class="primary-action" disabled>运行代码</button><button type="button" id="python-trace" disabled>逐行观察</button><button type="button" id="python-check" disabled>检查答案</button><button type="button" id="python-stop" disabled>停止</button><button type="button" id="python-reset" disabled>恢复初始代码</button></div>
+<div id="python-trace-panel" hidden><div class="python-toolbar"><button id="trace-prev" type="button">上一步</button><button id="trace-next" type="button">下一步</button><button id="trace-play" type="button">自动播放</button><span id="trace-position" role="status"></span></div><p class="python-editor-note">真实执行后的轨迹回放；高亮行处于执行前，返回步骤显示返回值。最多1500步。</p><pre id="trace-variables" class="python-console" aria-label="当前步骤的局部变量"></pre></div>
+<p class="python-editor-note">Ctrl / ⌘ + Enter 运行 · Tab 缩进 · 草稿仅存当前浏览器</p><label class="python-scenario-label" for="python-scenario">实验输入<select id="python-scenario"><option value="standard">两token前向</option><option value="overlap">不同上下文</option></select></label>
+<p id="python-status" class="python-status" role="status" aria-live="polite">点击运行后加载 Python。先补全 TODO，也可展开参考实现。</p><noscript><p>启用JavaScript后可运行；也可下载独立Python源码。</p></noscript></div>
+<div class="python-output-panel"><div class="python-panel-heading"><strong>实际运行结果</strong><span>来自你的 Python</span></div><div id="python-result"><p class="lab-empty">运行后显示本次结果，不会预先填入正确答案。</p></div></div></div></section>
+<template id="python-math">&quot;&quot;&quot;已提供的矩阵工具；算法目标在各实验中实现。仅用于小规模教学。&quot;&quot;&quot;
+import math
+
+def dot(a,b):
+    return sum(x*y for x,y in zip(a,b))
+
+def transpose(a):
+    return [list(row) for row in zip(*a)]
+
+def matmul(a,b):
+    return [[dot(row,col) for col in transpose(b)] for row in a]
+
+def softmax(row):
+    maximum=max(row)
+    values=[math.exp(x-maximum) for x in row]
+    return [x/sum(values) for x in values]
+
+def identity(n):
+    return [[float(i==j) for j in range(n)] for i in range(n)]
+</template><section id="help" class="python-help"><h2>参考与源码</h2><details class="supplement"><summary>查看参考答案</summary><pre data-language="Python"><code class="language-python"><span class="syntax-keyword">import</span> math
+<span class="syntax-keyword">import</span> re
+<span class="syntax-keyword">from</span> collections <span class="syntax-keyword">import</span> Counter
+<span class="syntax-keyword">from</span> tasteai_math <span class="syntax-keyword">import</span> dot, matmul, softmax, identity
+
+<span class="syntax-keyword">def</span> tiny_lm(ids,embedding,head):
+    hidden=[embedding[i][:] <span class="syntax-keyword">for</span> i <span class="syntax-keyword">in</span> ids]
+    dim=<span class="syntax-builtin">len</span>(embedding[<span class="syntax-number">0</span>])
+    <span class="syntax-comment"># 教学因果上下文层：前缀平均，避免把独立查表冒充语言模型。</span>
+    contextual=[[sum(hidden[j][d] <span class="syntax-keyword">for</span> j <span class="syntax-keyword">in</span> <span class="syntax-builtin">range</span>(t+<span class="syntax-number">1</span>))/(t+<span class="syntax-number">1</span>) <span class="syntax-keyword">for</span> d <span class="syntax-keyword">in</span> <span class="syntax-builtin">range</span>(dim)] <span class="syntax-keyword">for</span> t <span class="syntax-keyword">in</span> <span class="syntax-builtin">range</span>(<span class="syntax-builtin">len</span>(ids))]
+    logits=matmul(contextual,head)
+    <span class="syntax-keyword">return</span> {<span class="syntax-string">&#x27;hidden&#x27;</span>:contextual,<span class="syntax-string">&#x27;logits&#x27;</span>:logits,<span class="syntax-string">&#x27;probabilities&#x27;</span>:[softmax(row) <span class="syntax-keyword">for</span> row <span class="syntax-keyword">in</span> logits]}
+</code></pre><button type="button" id="python-load-solution" disabled>将参考答案载入编辑器</button></details><template id="python-solution">import math
+import re
+from collections import Counter
+from tasteai_math import dot, matmul, softmax, identity
+
+def tiny_lm(ids,embedding,head):
+    hidden=[embedding[i][:] for i in ids]
+    dim=len(embedding[0])
+    # 教学因果上下文层：前缀平均，避免把独立查表冒充语言模型。
+    contextual=[[sum(hidden[j][d] for j in range(t+1))/(t+1) for d in range(dim)] for t in range(len(ids))]
+    logits=matmul(contextual,head)
+    return {&#x27;hidden&#x27;:contextual,&#x27;logits&#x27;:logits,&#x27;probabilities&#x27;:[softmax(row) for row in logits]}
+</template>
+<p class="caption"><a href="python-lab/05-lm-forward/starter.py" download>初始框架</a> · <a href="python-lab/05-lm-forward/download.py" download>可独立运行的完整源码</a> · <a href="python-lab/exercise-harness.py">检查器</a>。自动检查是学习反馈，不是考试评分。</p></section>
+<section id="runtime-notes" class="sources"><h2>运行说明</h2><p>算法以小规模 Python 列表张量实现，无需GPU。首次运行按需加载本站 Python 运行时。运行超过8秒自动停止，也可主动停止。代码与草稿不会上传。</p><p>图形展示本次最终结果；逐行面板展示执行过程。可下载源码修改输入或扩展批次。真实框架与模型实验在本课配套Notebook中运行。</p></section>
+<nav class="chapter-links"><a href="05-token-ids-to-logits.html">← 回到本课</a><a href="coding-labs.html#course-05">本课与全部实验 →</a></nav></div>
+<footer>TasteAI · AI 学习笔记 · <a href="index.html#about">资料说明</a></footer></main><aside class="page-outline"><nav class="page-toc" aria-label="本页目录"><strong>本页目录</strong><ol><li><a href="#task">实现目标</a></li><li><a href="#workspace">参考与源码</a></li><li><a href="#runtime-notes">运行说明</a></li></ol></nav></aside><script src="foundation-math.js?v=abe12d2e9a"></script><script src="visual-explanations.js?v=51f7f2bc1b"></script><script src="reading.js?v=7e339cdf2c"></script><script src="python-lab.js?v=a851544a39"></script></body></html>

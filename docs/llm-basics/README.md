@@ -59,18 +59,15 @@ python3 scripts/build_llm_course.py
 
 普通阅读和课程页面重建不要求 draw.io。图形原理参考 CookLLM 公开主题结构，自行设计与绘制；会员受限正文及未能访问的交互内容未复制。条形图、热力图、旋转平面和缓存时间线沿用各课注明的教学数据与适用边界。
 
-## 浏览器 Python 样例
+## 按课完整算法实验
 
-`bpe-python-lab.html` 是独立的 BPE 编程实验，入口位于第二课与首页。读者可编辑 Python、运行合并、切换普通/重叠语料并检查六项结果。草稿仅保存在当前浏览器，代码由 Worker 内的真实 Python 执行。
+`coding-labs.html` 按12节课组织25个网页完整算法实验及3个配套Notebook，原短题已删除，旧URL只作跳转。
 
-- `python-lab/`：初始代码、参考实现与检查器；页面由同名 content 源和课程生成器构建。
-- `python-lab.js`、`python-lab-worker.js`：编辑器、结果图与运行控制；停止或超过 8 秒会终止 Worker。
-- `vendor/pyodide/314.0.7/`：固定版本的本地运行文件及许可证，首次点击运行才加载。发布时须保留整个目录，不依赖第三方 CDN。
+- `python-lab/core/*.py`：算法源与已提供的矩阵原语；`scripts/define_core_labs.py` 从这些源构建目标函数留空的starter、完整solution、独立运行的download.py及题目配置。检查预期值独立指定，不能从参考输出自动生成。
+- `python-lab/exercises.json`：每题的目标、分步说明、两组输入、检查与图形字段。`exercise-harness.py` 支持单独目标函数的阶段检查和完整流程验收。
+- `content/coding-lab-template.html`、`scripts/build_foundation_exercises.py`：实验页面模板与按课目录，后者由课程生成器调用。完整重建先运行define_core_labs.py，再运行build_llm_course.py。
+- `python-lab.js`、`python-lab-worker.js`：真实Worker执行、按题草稿、停止/8秒超时与1500步有界轨迹。图形包括token、合并轨迹、注意力热力图、RoPE平面和缓存位置，均来自实际输出。
+- `notebooks/`：真实tiktoken对比、PyTorch权重绑定梯度、长上下文评估。Notebook需对应本地环境；评估器自检不是模型能力评估。
+- `vendor/pyodide/314.0.7/`：按需加载的固定本地运行时及许可证，发布时保留。预览截图与验收JSON不发布。
 
-此样例仅使用 Python 标准库，不提供 PyTorch、GPU 或服务器代码执行。浏览器验收图保存在 `previews/bpe-python-*.png`，不参与发布。
-
-## 十二课编程实验
-
-`coding-labs.html` 汇总12个练习。BPE保留原专用检查器；其余11题由 `python-lab/exercises.json` 定义教学说明、输入及独立预期结果，各题目录维护 `starter.py` 和 `solution.py`。
-
-`exercise-harness.py` 统一执行和检查，通过Worker初始化选择题号。`scripts/build_foundation_exercises.py` 由课程生成器调用生成11个实验页及目录。所有实验复用本地运行时；不同题目草稿按题号隔离。每题提供两组预置输入，源码也可下载后自行调整调用参数。数学练习使用小规模标准库实现，非PyTorch/GPU运行环境。修改题目后运行课程生成器与全量unittest。
+网页使用小规模列表张量，无需GPU；独立源码可直接下载运行。更新后执行全量unittest，覆盖独立数值、性质、错误输入、真实WASM和原课程资源。
