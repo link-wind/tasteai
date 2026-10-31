@@ -2,6 +2,7 @@
 from contextlib import redirect_stdout, redirect_stderr
 import json
 import traceback
+import sys
 
 SCENARIOS = {
     "standard": [("low", 5), ("lower", 2), ("new", 4), ("newer", 1)],
@@ -106,16 +107,42 @@ def experiment(count, merge, scenario):
             "records": records, "scenario": scenario}
 
 
+def trace_snapshot(frame, event, arg):
+    values = {}
+    for key, value in list(frame.f_locals.items())[:16]:
+        if key.startswith("__") or callable(value):
+            continue
+        if type(value) in (int, float, str, bool, list, tuple, dict, type(None)) or isinstance(value, dict):
+            values[key] = repr(value)[:600]
+    if event == "return":
+        values["返回值"] = repr(arg)[:600]
+    return {"line": frame.f_lineno, "function": frame.f_code.co_name,
+            "event": event, "variables": values}
+
+
 def run_lab(code, scenario="standard", mode="run"):
     stdout = BoundedOutput()
     payload = {"ok": False, "stdout": "", "checks": [], "experiment": None, "error": ""}
+    trace = []
+    truncated = False
+    previous_trace = sys.gettrace()
+    def observe(frame, event, arg):
+        nonlocal truncated
+        if frame.f_code.co_filename == "<learner.py>" and event in ("line", "return"):
+            if len(trace) < 1500:
+                trace.append(trace_snapshot(frame, event, arg))
+            else:
+                truncated = True
+        return observe
     with redirect_stdout(stdout), redirect_stderr(stdout):
         try:
             if len(code) > 40000:
                 raise ValueError("代码最多40000个字符。")
-            if scenario not in SCENARIOS or mode not in ("run", "check"):
+            if scenario not in SCENARIOS or mode not in ("run", "check", "trace"):
                 raise ValueError("未知的实验设置。")
             namespace = {"__name__": "__learner__"}
+            if mode == "trace":
+                sys.settrace(observe)
             exec(compile(code, "<learner.py>", "exec"), namespace)
             count, merge = namespace.get("count_pairs"), namespace.get("merge_pair")
             if not callable(count) or not callable(merge):
@@ -126,5 +153,9 @@ def run_lab(code, scenario="standard", mode="run"):
             payload["ok"] = True
         except Exception:
             payload["error"] = traceback.format_exc(limit=5)[-5000:]
+        finally:
+            sys.settrace(previous_trace)
+    payload["trace"] = trace
+    payload["trace_truncated"] = truncated
     payload["stdout"] = stdout.getvalue()
     return json.dumps(payload, ensure_ascii=False)

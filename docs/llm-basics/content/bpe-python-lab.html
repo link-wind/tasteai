@@ -7,7 +7,11 @@
 <div class="python-code-panel">
 <div class="python-panel-heading"><strong>Python 代码</strong><span id="python-lines"></span><button type="button" id="python-download">下载当前代码</button></div>
 <div class="python-editor"><pre class="editor-highlight" data-editor-mirror aria-hidden="true"><code id="python-highlight"></code></pre><textarea id="python-code" aria-label="Python 代码编辑器" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" maxlength="40000">__STARTER__</textarea></div>
-<div class="python-toolbar"><button type="button" id="python-run" class="primary-action" disabled>运行代码</button><button type="button" id="python-check" disabled>检查答案</button><button type="button" id="python-stop" disabled>停止</button><button type="button" id="python-reset" disabled>恢复初始代码</button></div>
+<div class="python-toolbar"><button type="button" id="python-run" class="primary-action" disabled>运行代码</button><button type="button" id="python-trace" disabled>逐行观察</button><button type="button" id="python-check" disabled>检查答案</button><button type="button" id="python-stop" disabled>停止</button><button type="button" id="python-reset" disabled>恢复初始代码</button></div>
+<div id="python-trace-panel" hidden>
+<div class="python-toolbar"><button id="trace-prev" type="button">上一步</button><button id="trace-next" type="button">下一步</button><button id="trace-play" type="button">自动播放</button><span id="trace-position" role="status"></span></div>
+<p class="python-editor-note">真实执行后的轨迹回放 · 高亮行尚未执行，变量为该行执行前状态；返回步骤显示返回值。</p>
+<pre id="trace-variables" class="python-console" aria-label="当前步骤的局部变量"></pre></div>
 <p class="python-editor-note">Ctrl / ⌘ + Enter 运行 · Tab 缩进 · 草稿仅保存在当前浏览器</p>
 <label class="python-scenario-label" for="python-scenario">实验语料<select id="python-scenario"><option value="standard">普通语料：low / lower / new / newer</option><option value="overlap">重叠匹配：aaa × 2，aaaaa × 1</option></select></label>
 <p id="python-status" class="python-status" role="status" aria-live="polite" data-state="idle">Python 尚未加载；点击运行后准备环境。</p>
